@@ -73,7 +73,7 @@ Most so commands need to be run from within a Git repository.
 - This stores the parent-child relationship and the stack's base branch in your local `.git/config`.
 
 ```bash
-git checkout feature/a && so track #(select ⁠main as parent).
+git checkout "<branch-name>" && so track #(select ⁠main as parent).
 ```
 
 #### show
@@ -94,7 +94,7 @@ so show
 - Automatically tracks the new branch with the current branch as its parent.
 
 ```bash
-⁠so create <new-branch-name> -m "<message>"
+⁠so create "<new-branch-name>" -m "<message>"
 ```
 
 #### restack
