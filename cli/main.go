@@ -1,6 +1,6 @@
 package main
 
-import "github.com/benekuehn/socle/cmd"
+import "github.com/benekuehn/so/cmd"
 
 func main() {
 	cmd.Execute()

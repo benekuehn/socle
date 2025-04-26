@@ -1,0 +1,24 @@
+# Git files
+.DS_Store
+*.swp
+
+# Go CLI ('so')
+/cli/so # Or whatever you name the compiled binary
+/cli/build/ # Optional build output directory
+
+# Next.js website
+/website/node_modules
+/website/.next
+/website/out/
+/website/.DS_Store
+/website/*.log
+/website/npm-debug.log*
+/website/yarn-debug.log*
+/website/yarn-error.log*
+/website/.pnpm-debug.log*
+/website/.env*.local
+/website/.vercel
+
+# Editor/IDE specific
+.vscode/
+.idea/

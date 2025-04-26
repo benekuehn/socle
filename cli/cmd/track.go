@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/benekuehn/socle/gitutils"
+	"github.com/benekuehn/so/gitutils"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/benekuehn/socle/gitutils"
+	"github.com/benekuehn/so/gitutils"
 	"github.com/spf13/cobra"
 )
 
