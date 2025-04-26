@@ -1,4 +1,4 @@
-# `so` - Stacked Operations CLI
+# `so` - Stacked Branches CLI
 
 `so` is a command-line interface tool designed to simplify working with stacked Git branches and pull requests. It helps manage the relationships between dependent branches, automating common tasks like rebasing and creating sequential branches.
 
