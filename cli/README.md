@@ -67,7 +67,7 @@ so --help
 Most so commands need to be run from within a Git repository.
 
 ### Core Commands:
-`so track`
+#### track
 - Use this command when you are on a branch that you want to start tracking as part of a stack.
 - It will prompt you to select the parent branch for the current branch.
 - This stores the parent-child relationship and the stack's base branch in your local `.git/config`.
@@ -76,7 +76,7 @@ Most so commands need to be run from within a Git repository.
 git checkout feature/a && so track #(select ⁠main as parent).
 ```
 
-`so show`
+#### show
 - Displays the current stack of branches you are on, based on the tracking information set by ⁠so track.
 - Shows the lineage from the base branch up to your current branch, marking the current one.
 - If the current branch isn't tracked, it will prompt you to use ⁠so track.
@@ -86,7 +86,7 @@ git checkout feature/a && so track #(select ⁠main as parent).
 so show
 ```
 
-`so create [new-branch-name]`
+#### create
 - Creates a new branch stacked on top of your current tracked branch.
 - Your current branch must be tracked first (use ⁠so track).
 - If `[new-branch-name]` is omitted, you'll be prompted.
@@ -96,10 +96,10 @@ so show
 
 **Example**
 ```bash
-⁠so create feature/b -m "Add initial component"
+⁠so create <new-branch-name> -m "<message>"
 ```
 
-`so restack`
+#### restack
 - Rebases the entire current stack onto the latest version of its base branch (e.g., ⁠main).
 - Requires Git >= 2.38 and uses `git rebase --update-refs.`
 - Fetches the base branch from ⁠origin by default (use `--no-fetch` to skip).
