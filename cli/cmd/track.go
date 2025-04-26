@@ -2,12 +2,12 @@ package cmd
 
 import (
 	"fmt"
-	"os" // Needed for os.Exit
+	"os"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/benekuehn/so/gitutils"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/benekuehn/so/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -137,7 +137,7 @@ within a stack. This allows 'socle show' to display the specific stack you are o
 			return fmt.Errorf("failed to set socle-base config: %w", err)
 		}
 
-		fmt.Println(colors.SuccessStyle.Render("Branch tracking information saved successfully.")) // Using colors like Aviator
+		fmt.Println(ui.Colors.SuccessStyle.Render("Branch tracking information saved successfully."))
 		return nil
 	},
 }
@@ -145,12 +145,4 @@ within a stack. This allows 'socle show' to display the specific stack you are o
 func init() {
 	AddCommand(trackCmd)
 	// Add flags here if needed later (e.g., --parent, --base to skip prompts)
-}
-
-// could move to a central place
-var colors = struct {
-	SuccessStyle lipgloss.Style
-	// Add more styles as needed
-}{
-	SuccessStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true), // Bright Green
 }
