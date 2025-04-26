@@ -71,7 +71,7 @@ Most so commands need to be run from within a Git repository.
 - Use this command when you are on a branch that you want to start tracking as part of a stack.
 - It will prompt you to select the parent branch for the current branch.
 - This stores the parent-child relationship and the stack's base branch in your local `.git/config`.
-**Example**
+
 ```bash
 git checkout feature/a && so track #(select ⁠main as parent).
 ```
@@ -81,7 +81,6 @@ git checkout feature/a && so track #(select ⁠main as parent).
 - Shows the lineage from the base branch up to your current branch, marking the current one.
 - If the current branch isn't tracked, it will prompt you to use ⁠so track.
 
-**Example**
 ```bash
 so show
 ```
@@ -94,7 +93,6 @@ so show
 - The changes will be committed on the new branch.
 - Automatically tracks the new branch with the current branch as its parent.
 
-**Example**
 ```bash
 ⁠so create <new-branch-name> -m "<message>"
 ```
@@ -105,7 +103,6 @@ so show
 - Fetches the base branch from ⁠origin by default (use `--no-fetch` to skip).
 - If conflicts occur, ⁠so will stop and instruct you to use standard `git rebase --continue` or `git rebase --abort` commands after resolving conflicts.
 
-**Example**
 ```bash
 so restack
 ```
