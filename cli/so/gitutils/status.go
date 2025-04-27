@@ -1,6 +1,7 @@
 package gitutils
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -21,18 +22,24 @@ func StageInteractively() error {
 func HasStagedChanges() (bool, error) {
 	// --quiet makes it exit 0 if no diff, 1 if diff.
 	// --cached (or --staged) compares index to HEAD.
-	err := RunGitCommandInteractive("diff", "--cached", "--quiet")
+	// Use RunGitCommand as no interaction is needed, just the exit code.
+	_, err := RunGitCommand("diff", "--cached", "--quiet") // Use non-interactive runner
 
 	if err == nil {
 		return false, nil // Exit code 0 means no staged changes
 	}
 
-	// Check if the error is specifically an ExitError with code 1
-	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-		return true, nil // Exit code 1 means there *are* staged changes
+	// Check if the error indicates exit code 1 (which means changes *were* found)
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) { // Use errors.As to properly unwrap
+		if exitErr.ExitCode() == 1 {
+			// Exit code 1 from "git diff --quiet" means "differences found".
+			// This is success for our check, so return true and nil error.
+			return true, nil
+		}
 	}
 
-	// Any other error is unexpected
+	// Any other error (or different exit code) is unexpected
 	return false, fmt.Errorf("failed to check for staged changes: %w", err)
 }
 
@@ -102,4 +109,53 @@ func RebaseUpdateRefs(baseBranch string) error {
 		return fmt.Errorf("git rebase --update-refs failed: %w", err)
 	}
 	return nil
+}
+
+// ErrRebaseConflict indicates a git rebase operation stopped due to conflicts.
+var ErrRebaseConflict = errors.New("rebase conflict detected")
+
+// RebaseCurrentBranchOnto performs `git rebase <newBaseOID>` on the currently checked-out branch.
+// It specifically checks for conflicts upon failure using IsRebaseInProgress.
+func RebaseCurrentBranchOnto(newBaseOID string) error {
+	// Run the simple rebase command for the current branch
+	// Pass the specific commit hash as the <newbase>
+	_, err := RunGitCommand("rebase", newBaseOID)
+
+	if err == nil {
+		return nil // Success
+	}
+
+	// Check if the failure left us in a conflict state
+	if IsRebaseInProgress() {
+		// Return the specific sentinel error
+		return ErrRebaseConflict
+	}
+
+	// Otherwise, it was some other unexpected rebase error.
+	// The error 'err' from RunGitCommand already contains context (stderr, exit code).
+	return fmt.Errorf("git rebase onto '%s' failed: %w", newBaseOID, err)
+}
+
+// HasDiff checks if there are differences between two refs (e.g., parent..branch).
+// Uses `git diff --quiet <ref1>..<ref2>`. Exits 0 if no changes, 1 if changes.
+func HasDiff(ref1, ref2 string) (bool, error) {
+	diffRange := fmt.Sprintf("%s..%s", ref1, ref2)
+	// --quiet makes it exit 0 if no diff, 1 if diff.
+	_, err := RunGitCommand("diff", "--quiet", diffRange)
+
+	if err == nil {
+		return false, nil // Exit code 0 means no differences
+	}
+
+	// Check if the error indicates exit code 1 (which means differences *were* found)
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		if exitErr.ExitCode() == 1 {
+			// Exit code 1 from "git diff --quiet" means "differences found".
+			return true, nil // Report true (diff exists), nil error
+		}
+	}
+
+	// Any other error (or different exit code) is unexpected
+	return false, fmt.Errorf("failed to check diff for range '%s': %w", diffRange, err)
 }

@@ -97,3 +97,22 @@ func FetchBranch(branch string) error {
 	}
 	return nil
 }
+
+// PushBranchWithLease pushes a local branch to a remote using --force-with-lease.
+// This is safer than --force as it checks if the remote ref hasn't changed unexpectedly.
+func PushBranchWithLease(branchName string, remoteName string) error {
+	args := []string{"push", "--force-with-lease"}
+
+	// Explicitly specify refspec for clarity and safety
+	refspec := fmt.Sprintf("refs/heads/%s:refs/heads/%s", branchName, branchName)
+	args = append(args, remoteName, refspec)
+
+	// Push can output progress to stderr, RunGitCommand handles capturing stderr on error.
+	_, err := RunGitCommand(args...)
+	if err != nil {
+		// Push failures (especially with --force-with-lease) often have informative
+		// messages in stderr, which RunGitCommand includes in the error.
+		return fmt.Errorf("failed to push branch '%s' with lease to remote '%s': %w", branchName, remoteName, err)
+	}
+	return nil
+}

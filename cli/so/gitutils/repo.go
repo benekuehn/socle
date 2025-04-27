@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 )
 
 // GetRepoRoot (Keep the existing one)
@@ -17,29 +15,6 @@ func GetRepoRoot() (string, error) {
 func IsGitRepo() bool {
 	_, err := RunGitCommand("rev-parse", "--is-inside-work-tree")
 	return err == nil
-}
-
-// GetGitVersion returns the major and minor version numbers.
-func GetGitVersion() (major int, minor int, err error) {
-	output, err := RunGitCommand("--version") // git --version
-	if err != nil {
-		return 0, 0, fmt.Errorf("failed to get git version: %w", err)
-	}
-	// Output looks like "git version 2.40.1" or "git version 2.38.0.windows.1"
-	parts := strings.Fields(output)
-	if len(parts) < 3 || parts[0] != "git" || parts[1] != "version" {
-		return 0, 0, fmt.Errorf("unexpected git version format: %s", output)
-	}
-	versionParts := strings.Split(parts[2], ".")
-	if len(versionParts) < 2 {
-		return 0, 0, fmt.Errorf("unexpected version number format in: %s", parts[2])
-	}
-	major, errMajor := strconv.Atoi(versionParts[0])
-	minor, errMinor := strconv.Atoi(versionParts[1])
-	if errMajor != nil || errMinor != nil {
-		return 0, 0, fmt.Errorf("failed to parse version numbers from: %s", parts[2])
-	}
-	return major, minor, nil
 }
 
 var prTemplatePaths = []string{

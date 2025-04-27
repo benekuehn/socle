@@ -50,3 +50,23 @@ func GetFirstCommitSubject(parentRef, branchRef string) (string, error) {
 	subject := strings.TrimSpace(lines[0])
 	return subject, nil
 }
+
+// GetCurrentBranchCommit returns the full commit hash for the tip of a specific local branch.
+func GetCurrentBranchCommit(branchName string) (string, error) {
+	// Ensure we are asking for the local branch ref
+	ref := fmt.Sprintf("refs/heads/%s", branchName)
+	// Use rev-parse without --verify, as we expect the branch to exist
+	// when this is called in the restack loop.
+	output, err := RunGitCommand("rev-parse", ref)
+	if err != nil {
+		// This error is more serious than BranchExists failing, as we expect
+		// the branch (parent or current) to exist during the restack loop.
+		// The error from RunGitCommand will include stderr detail.
+		return "", fmt.Errorf("failed to get commit hash for branch '%s' (ref: '%s'): %w", branchName, ref, err)
+	}
+	// Check for empty output just in case rev-parse succeeds but returns nothing
+	if output == "" {
+		return "", fmt.Errorf("git rev-parse for branch '%s' succeeded but returned empty output", branchName)
+	}
+	return output, nil
+}

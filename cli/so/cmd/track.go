@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/benekuehn/so/gitutils"
-	"github.com/benekuehn/so/internal/ui"
+	"github.com/benekuehn/socle/cli/so/gitutils"
+	"github.com/benekuehn/socle/cli/so/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -144,5 +144,4 @@ within a stack. This allows 'socle show' to display the specific stack you are o
 
 func init() {
 	AddCommand(trackCmd)
-	// Add flags here if needed later (e.g., --parent, --base to skip prompts)
 }

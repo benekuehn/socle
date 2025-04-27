@@ -1,6 +1,11 @@
 package gitutils
 
-import "strings"
+import (
+	"errors"
+	"fmt"
+	"os/exec"
+	"strings"
+)
 
 // GetGitConfig retrieves a specific git config key's value.
 // Returns an error containing "exit status 1" if the key doesn't exist.
@@ -35,4 +40,24 @@ func UnsetGitConfig(key string) error {
 		return err
 	}
 	return nil
+}
+
+func IsRerereEnabled() (bool, error) {
+	output, err := RunGitCommand("config", "--get", "rerere.enabled")
+
+	if err == nil {
+		// Config key exists, check its value
+		return strings.ToLower(strings.TrimSpace(output)) == "true", nil
+	}
+
+	// Check if the error was simply "key not found"
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+		// Key not found means rerere is not explicitly enabled (or disabled)
+		// via this specific key, treat as disabled.
+		return false, nil
+	}
+
+	// Any other error is unexpected
+	return false, fmt.Errorf("failed to check git config rerere.enabled: %w", err)
 }

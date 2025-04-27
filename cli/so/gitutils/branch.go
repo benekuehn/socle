@@ -55,8 +55,12 @@ func BranchExists(name string) (bool, error) {
 	// Check if the error is the specific non-zero exit code we expect for "not found"
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) { // Use errors.As for type assertion
-		if exitErr.ExitCode() == 1 { // Exit code 1 for rev-parse --verify means not found
-			return false, nil // Not found is not an *error* for this function's purpose
+		if errors.As(err, &exitErr) {
+			// Exit code 1 is the documented code for "not found".
+			// Exit code 128 on user's system also indicates ref cannot be resolved.
+			if exitErr.ExitCode() == 1 || exitErr.ExitCode() == 128 {
+				return false, nil // Ref not found, treat as non-error for this function
+			}
 		}
 	}
 

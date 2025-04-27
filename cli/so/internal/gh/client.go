@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os" // To read GITHUB_TOKEN
+	"os"
+	"os/exec"
+	"strings"
 	"time"
 
+	"github.com/benekuehn/socle/cli/so/gitutils"
 	"github.com/google/go-github/v71/github"
 	"golang.org/x/oauth2"
 )
@@ -22,27 +25,53 @@ type Client struct {
 // NewClient creates a new GitHub client using GITHUB_TOKEN.
 func NewClient(ctx context.Context, owner, repo string) (*Client, error) {
 	token := os.Getenv("GITHUB_TOKEN")
+	ghUsed := false // Track if we used gh token
+
 	if token == "" {
-		return nil, fmt.Errorf("GITHUB_TOKEN environment variable not set. Please create a Personal Access Token with 'repo' scope")
+		// GITHUB_TOKEN not set, try fetching from 'gh' CLI
+		fmt.Println("GITHUB_TOKEN not set. Checking 'gh' CLI for authentication...")
+
+		// Check if 'gh' command exists first
+		ghPath, errLookPath := exec.LookPath("gh")
+		if errLookPath != nil {
+			// 'gh' CLI not found in PATH
+			return nil, fmt.Errorf("authentication failed: GITHUB_TOKEN not set and 'gh' CLI not found in PATH. Please set GITHUB_TOKEN or install and authenticate GitHub CLI ('gh auth login')")
+		}
+		fmt.Printf("Found 'gh' CLI at: %s. Attempting to fetch token...\n", ghPath)
+
+		ghToken, err := gitutils.RunExternalCommand("gh", "auth", "token")
+		if err != nil {
+			desc := "Authentication failed: GITHUB_TOKEN environment variable not set "
+			desc += "AND failed to get token from 'gh' CLI. "
+			desc += "Please either set GITHUB_TOKEN or ensure 'gh auth login' is complete."
+			return nil, fmt.Errorf("%s\ngh command error: %w", desc, err)
+		}
+		if ghToken == "" {
+			// gh command ran but returned empty token
+			return nil, fmt.Errorf("authentication failed: GITHUB_TOKEN not set and 'gh auth token' returned empty. Please run 'gh auth login' or set GITHUB_TOKEN")
+		}
+		fmt.Println("Successfully retrieved token using 'gh auth token'.")
+		token = strings.TrimSpace(ghToken) // Use the token from gh
+		ghUsed = true
 	}
 
+	if !ghUsed {
+		fmt.Println("Using GITHUB_TOKEN for authentication.")
+	}
+
+	// Use the determined token (either from ENV or gh)
 	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	tc := oauth2.NewClient(ctx, ts)
-
-	// Add timeout to the http client
 	httpClientWithTimeout := &http.Client{
 		Transport: tc.Transport,
-		Timeout:   5 * time.Second,
+		Timeout:   15 * time.Second,
 	}
-
 	ghClient := github.NewClient(httpClientWithTimeout)
 
-	return &Client{
-		gh:    ghClient,
-		Owner: owner,
-		Repo:  repo,
-		Ctx:   ctx,
-	}, nil
+	// Optional: Verify token works (consider adding this later if needed)
+	// _, _, errVerify := ghClient.Users.Get(ctx, "") ...
+
+	return &Client{gh: ghClient, Owner: owner, Repo: repo, Ctx: ctx}, nil
 }
 
 // GetPullRequest retrieves a specific PR by number.

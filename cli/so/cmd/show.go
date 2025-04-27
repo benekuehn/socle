@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/benekuehn/so/gitutils"
+	"github.com/benekuehn/socle/cli/so/gitutils"
 	"github.com/spf13/cobra"
 )
 
@@ -109,5 +109,4 @@ branch to the current branch, based on metadata set by 'socle track'.`,
 
 func init() {
 	AddCommand(showCmd)
-	// Remove or update flags if they were base-related
 }
