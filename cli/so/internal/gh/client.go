@@ -143,3 +143,45 @@ func (c *Client) UpdateComment(commentID int64, body string) (*github.IssueComme
 	}
 	return updatedComment, nil
 }
+
+func (c *Client) FindCommentWithMarker(issueNumber int, marker string) (commentID int64, err error) {
+	// GitHub API typically paginates results. We need to handle pagination
+	// to ensure we check all comments.
+	opt := &github.IssueListCommentsOptions{
+		ListOptions: github.ListOptions{PerPage: 50}, // Get 100 per page
+	}
+	var foundComment *github.IssueComment = nil
+
+	for {
+		comments, resp, errList := c.gh.Issues.ListComments(c.Ctx, c.Owner, c.Repo, issueNumber, opt)
+		if errList != nil {
+			// Handle potential rate limiting or other API errors
+			return 0, fmt.Errorf("failed to list comments for PR #%d: %w", issueNumber, errList)
+		}
+
+		// Search for the marker in the current page of comments
+		for _, comment := range comments {
+			if comment.Body != nil && strings.Contains(*comment.Body, marker) {
+				foundComment = comment
+				break // Found it, exit inner loop
+			}
+		}
+
+		if foundComment != nil {
+			break // Found it, exit outer loop
+		}
+
+		// Check if there are more pages
+		if resp.NextPage == 0 {
+			break // No more pages
+		}
+		opt.Page = resp.NextPage // Move to the next page
+	}
+
+	if foundComment != nil {
+		return foundComment.GetID(), nil // Return the found ID
+	}
+
+	// Marker not found in any comment
+	return 0, nil // Return 0, nil error signifies "not found"
+}

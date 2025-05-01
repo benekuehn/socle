@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"context" // Need context for GitHub client
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -299,7 +300,11 @@ and creates or updates corresponding GitHub Pull Requests.
 		for branch, info := range prInfoMap {
 			fmt.Printf("DEBUG: Map entry - branch: %s, PR #%d, URL: %s\n", branch, info.Number, info.URL)
 		}
+
+		// --- Second Loop: Add/Update Stack Comments ---
 		fmt.Println("\n--- Phase 2: Updating PR comments with stack overview ---")
+		stackCommentMarker := "<!-- socle-stack-overview -->"
+
 		if len(prInfoMap) == 0 {
 			fmt.Println("No pull requests were found or created. Skipping comment updates.")
 		} else {
@@ -320,11 +325,39 @@ and creates or updates corresponding GitHub Pull Requests.
 				commentIDKey := fmt.Sprintf("branch.%s.socle-comment-id", branch)
 				commentIDStr, errGetID := gitutils.GetGitConfig(commentIDKey)
 				commentID := int64(0)
+				configReadError := false
+
 				if errGetID == nil && commentIDStr != "" {
-					fmt.Sscan(commentIDStr, &commentID)                        // Ignore scan error
-					fmt.Printf("  Found existing comment ID: %d\n", commentID) // DEBUG
-				} else {
-					fmt.Println("  No existing comment ID found.") // DEBUG
+					_, errScan := fmt.Sscan(commentIDStr, &commentID)
+					if errScan != nil {
+						fmt.Fprintf(os.Stderr, ui.Colors.WarningStyle.Render("  Warning: Could not parse stored comment ID '%s': %v\n"), commentIDStr, errScan)
+						commentID = 0 // Reset on error
+					} else {
+						fmt.Printf("  Found comment ID %d in local config.\n", commentID)
+					}
+				} else if errGetID != nil && !errors.Is(errGetID, gitutils.ErrConfigNotFound) {
+					// Unexpected error reading config
+					fmt.Fprintf(os.Stderr, ui.Colors.WarningStyle.Render("  Warning: Failed to read comment ID config: %v\n"), errGetID)
+					configReadError = true // Flag that we had a config issue
+				}
+				// If we get here and commentID is still 0, it means config wasn't found or had error
+
+				// If local ID wasn't found/valid, try searching GitHub using marker
+				if commentID == 0 && !configReadError {
+					fmt.Println("  No valid local comment ID found. Searching GitHub for marker comment...")
+					foundID, errFind := ghClient.FindCommentWithMarker(prInfo.Number, stackCommentMarker)
+					if errFind != nil {
+						// Error calling the API to find the comment
+						fmt.Fprintf(os.Stderr, ui.Colors.WarningStyle.Render("  Warning: Failed to search for marker comment on PR #%d: %v\n"), prInfo.Number, errFind)
+						// Proceed to try creating a new comment? Or bail? Let's try creating.
+					} else if foundID > 0 {
+						fmt.Printf("  Found existing comment ID %d via marker on GitHub.\n", foundID)
+						commentID = foundID // Use the ID found via API
+						// Optionally store this back to local config for next time?
+						// errSet := gitutils.SetGitConfig(commentIDKey, fmt.Sprintf("%d", commentID)) ... handle error ...
+					} else {
+						fmt.Println("  No existing marker comment found on GitHub.")
+					}
 				}
 
 				var resultingComment *github.IssueComment // Use GH type
