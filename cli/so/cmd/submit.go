@@ -131,6 +131,8 @@ and creates or updates corresponding GitHub Pull Requests.
 					prNumber = 0 // Force creation path
 					currentPR = nil
 				} else {
+					currentPR = existingPR
+
 					// Check if base needs update
 					if existingPR.GetBase().GetRef() != parent {
 						fmt.Printf("Updating base branch for PR #%d from '%s' to '%s'...\n", prNumber, existingPR.GetBase().GetRef(), parent)
@@ -143,19 +145,19 @@ and creates or updates corresponding GitHub Pull Requests.
 						fmt.Println(ui.Colors.SuccessStyle.Render("PR base updated."))
 					} else {
 						fmt.Println("PR base branch is already correct.")
-						currentPR = existingPR
 					}
-					fmt.Printf("PR #%d link: %s\n", prNumber, existingPR.GetHTMLURL())
 
-					// Store PR info for comment phase
-					prInfoMap[branch] = submittedPrInfo{
-						Number: currentPR.GetNumber(),
-						URL:    currentPR.GetHTMLURL(),
-						Title:  currentPR.GetTitle(),
+					currentPrNumberStr := fmt.Sprintf("%d", currentPR.GetNumber()) // Use number from fetched/updated PR
+
+					if currentPrNumberStr != prNumberStr { // Only write if missing or different
+						fmt.Printf("Updating stored PR number %s for branch '%s'...\n", currentPrNumberStr, branch)
+						errSet := gitutils.SetGitConfig(prNumberKey, currentPrNumberStr)
+						if errSet != nil {
+							fmt.Fprintf(os.Stderr, ui.Colors.FailureStyle.Render("CRITICAL WARNING: Failed to store PR number %d locally for branch '%s': %v\n"), currentPR.GetNumber(), branch, errSet)
+						}
 					}
-					fmt.Printf("DEBUG: Stored PR info for %s: %+v\n", branch, prInfoMap[branch])
 
-					continue // Move to next branch in stack
+					fmt.Printf("PR #%d link: %s\n", currentPR.GetNumber(), currentPR.GetHTMLURL())
 				}
 			}
 
@@ -285,10 +287,9 @@ and creates or updates corresponding GitHub Pull Requests.
 					URL:    currentPR.GetHTMLURL(),
 					Title:  currentPR.GetTitle(),
 				}
-				fmt.Printf("DEBUG: Stored PR info for %s: %+v\n", branch, prInfoMap[branch])
+				// fmt.Printf("DEBUG: Stored PR info for %s: %+v\\n", branch, prInfoMap[branch]) // Optional Debug
 			} else {
-				// This case now happens if we skipped due to no diff or update failed
-				fmt.Printf("DEBUG: No valid PR object for %s after processing (skipped or failed).\n", branch)
+				// fmt.Printf("DEBUG: No valid PR object for %s after processing (skipped or failed).\\n\", branch) // Optional Debug
 			}
 
 		} // End of first loop

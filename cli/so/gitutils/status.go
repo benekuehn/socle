@@ -159,3 +159,36 @@ func HasDiff(ref1, ref2 string) (bool, error) {
 	// Any other error (or different exit code) is unexpected
 	return false, fmt.Errorf("failed to check diff for range '%s': %w", diffRange, err)
 }
+
+func NeedsRestack(parentBranchName, childBranchName string) (needsRestack bool, err error) {
+	// 1. Get the current commit hash (OID) of the parent branch
+	parentOID, err := GetCurrentBranchCommit(parentBranchName)
+	if err != nil {
+		// If we can't get the parent's commit, we can't determine status reliably
+		return false, fmt.Errorf("failed to get current commit for parent '%s': %w", parentBranchName, err)
+	}
+	if parentOID == "" { // Should not happen if GetCurrentBranchCommit works, but safeguard
+		return false, fmt.Errorf("internal error: got empty commit OID for parent '%s'", parentBranchName)
+	}
+
+	// 2. Get the merge-base between the parent and the child branch
+	mergeBase, err := GetMergeBase(parentBranchName, childBranchName)
+	if err != nil {
+		// If merge-base fails (e.g., unrelated histories, though unlikely in a stack),
+		// consider it as needing restack? Or return error?
+		// Let's return an error for now, as it indicates a broken state.
+		// The error from GetMergeBase should be informative.
+		return false, fmt.Errorf("failed to find merge base between '%s' and '%s': %w", parentBranchName, childBranchName, err)
+	}
+	if mergeBase == "" { // Should not happen if GetMergeBase works, but safeguard
+		return false, fmt.Errorf("internal error: got empty merge base between '%s' and '%s'", parentBranchName, childBranchName)
+	}
+
+	// 3. Compare the merge-base with the parent's current OID
+	// If the merge-base is *not* the same as the parent's current tip,
+	// it means the parent has moved forward since the child was based on it,
+	// OR the child was based on something else entirely. Either way, a rebase is needed.
+	needsRestack = (mergeBase != parentOID)
+
+	return needsRestack, nil
+}

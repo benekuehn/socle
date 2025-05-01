@@ -10,15 +10,21 @@ import (
 // GetGitConfig retrieves a specific git config key's value.
 // Returns an error containing "exit status 1" if the key doesn't exist.
 func GetGitConfig(key string) (string, error) {
-	// Using --null to handle potential whitespace issues, although less likely for our keys
-	// Using --default "" makes the command succeed even if key doesn't exist, returning empty.
-	// Let's stick to --get which fails if not found, making non-existence explicit.
+	// Assumes RunGitCommand exists and returns error wrapping *exec.ExitError on failure
 	output, err := RunGitCommand("config", "--get", key)
-	if err != nil {
-		// Return the specific error from RunGitCommand, which includes exit code info
-		return "", err
+	if err == nil {
+		return output, nil // Success
 	}
-	return output, nil
+
+	// Check if the underlying error is ExitError code 1
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+		// Key not found: Return our specific sentinel error, WRAPPING it.
+		return "", fmt.Errorf("%w: %s", ErrConfigNotFound, key) // <-- Use %w
+	}
+
+	// Any other error during the git command
+	return "", fmt.Errorf("failed to get git config '%s': %w", key, err) // <-- Use %w here too
 }
 
 // SetGitConfig sets (or adds) a git config key-value pair.
@@ -61,3 +67,5 @@ func IsRerereEnabled() (bool, error) {
 	// Any other error is unexpected
 	return false, fmt.Errorf("failed to check git config rerere.enabled: %w", err)
 }
+
+var ErrConfigNotFound = errors.New("git config key not found")
