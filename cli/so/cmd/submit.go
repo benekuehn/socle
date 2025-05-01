@@ -452,7 +452,7 @@ and creates or updates corresponding GitHub Pull Requests.
 // renderStackCommentBody generates the markdown comment.
 func renderStackCommentBody(stack []string, currentBranch string, prInfoMap map[string]submittedPrInfo) string {
 	var sb strings.Builder
-	sb.WriteString("### 📚 Socle Stack Overview\n") // Add tool name for clarity
+	sb.WriteString("### 📚 Stack Overview\n") // Add tool name for clarity
 	sb.WriteString("This PR is part of a stack. Links to other PRs in the stack:\n\n")
 
 	// Iterate stack from top (end) down to base (start)
@@ -461,20 +461,18 @@ func renderStackCommentBody(stack []string, currentBranch string, prInfoMap map[
 		prInfo, ok := prInfoMap[branchName]
 		indicator := ""
 		if branchName == currentBranch {
-			indicator = " 👈 **(Current PR)**"
+			indicator = " 👈"
 		}
 
 		if ok {
 			// Found PR info for this branch
-			sb.WriteString(fmt.Sprintf("* **#%d** [%s](%s)%s\n",
+			sb.WriteString(fmt.Sprintf("* **#%d** %s\n",
 				prInfo.Number,
-				prInfo.Title, // Use fetched title
-				prInfo.URL,
 				indicator,
 			))
 		} else {
 			// No PR info (maybe submit failed for this branch earlier?)
-			sb.WriteString(fmt.Sprintf("* `%s` (PR not submitted/found)%s\n",
+			sb.WriteString(fmt.Sprintf("* `%s` (Coming soon 🤞)%s\n",
 				branchName,
 				indicator,
 			))
