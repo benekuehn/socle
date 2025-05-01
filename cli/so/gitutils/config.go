@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strings"
 )
 
@@ -69,3 +70,94 @@ func IsRerereEnabled() (bool, error) {
 }
 
 var ErrConfigNotFound = errors.New("git config key not found")
+
+// GetAllSocleParents returns a map of childBranch -> parentBranch based on socle config.
+func GetAllSocleParents() (map[string]string, error) {
+	// Get all config keys matching the pattern using --get-regexp
+	// Note: Output format is "key value\nkey value\n..."
+	output, err := RunGitCommand("config", "--local", "--get-regexp", `^branch\.(.+)\.socle-parent$`)
+	if err != nil {
+		// It's okay if no keys are found (exit code 1 from --get-regexp)
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			return make(map[string]string), nil // No keys found, return empty map
+		}
+		// Other unexpected error
+		return nil, fmt.Errorf("failed to get socle parent configs: %w", err)
+	}
+
+	parentMap := make(map[string]string)
+	lines := strings.Split(output, "\n")
+	// Regex to extract the branch name from the key
+	keyRegex := regexp.MustCompile(`^branch\.(.+)\.socle-parent$`)
+
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, " ", 2) // Split key and value
+		if len(parts) != 2 {
+			continue
+		} // Skip malformed lines
+
+		key := parts[0]
+		value := parts[1]
+
+		matches := keyRegex.FindStringSubmatch(key)
+		if len(matches) == 2 {
+			childBranch := matches[1]
+			parentMap[childBranch] = value
+		}
+	}
+	return parentMap, nil
+}
+
+// BuildChildMap creates a map of parent -> list of children.
+func BuildChildMap(parentMap map[string]string) map[string][]string {
+	childMap := make(map[string][]string)
+	for child, parent := range parentMap {
+		childMap[parent] = append(childMap[parent], child)
+	}
+	return childMap
+}
+
+// FindAllDescendants performs a DFS to find all descendants of a start node.
+func FindAllDescendants(startNode string, childMap map[string][]string) []string {
+	var descendants []string
+	var visited = make(map[string]bool)
+	var stack = []string{startNode} // Use slice as stack
+
+	// Keep track of nodes added to descendants to avoid duplicates if graph has cycles (shouldn't happen)
+	addedToDescendants := make(map[string]bool)
+
+	for len(stack) > 0 {
+		// Pop
+		node := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		if visited[node] {
+			continue
+		}
+		visited[node] = true
+
+		// Process children
+		if children, ok := childMap[node]; ok {
+			// Add children to stack (reverse order to process approx left-to-right in DFS)
+			for i := len(children) - 1; i >= 0; i-- {
+				child := children[i]
+				if !visited[child] { // Add to stack only if not visited
+					stack = append(stack, child)
+				}
+				// Add child to descendants list if not already added
+				if !addedToDescendants[child] {
+					descendants = append(descendants, child)
+					addedToDescendants[child] = true
+				}
+			}
+		}
+	}
+	// The result might not be perfectly ordered topologically if branches cross,
+	// but it contains all descendants. Sorting might be needed depending on use case.
+	// For submit, the order we process doesn't strictly matter as much as having the full list.
+	return descendants
+}

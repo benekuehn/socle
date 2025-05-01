@@ -63,12 +63,42 @@ and creates or updates corresponding GitHub Pull Requests.
 		}
 		fmt.Printf("Operating on repository: %s/%s\n", owner, repoName)
 
-		// 2. Get Stack Info
-		_, stack, _, err := getCurrentStackInfo()
+		// --- Get Stack Info ---
+		currentBranch, currentStack, _, err := getCurrentStackInfo()
 		if err != nil {
-			return err // Error message already formatted
+			return handleShowStartupError(err, currentBranch)
+		} // Pass currentBranch hint
+
+		// --- Determine Full Stack ---
+		fmt.Println("Determining full stack...")
+		allParents, err := gitutils.GetAllSocleParents()
+		if err != nil {
+			return fmt.Errorf("failed to read all tracking relationships: %w", err)
 		}
-		if len(stack) <= 1 {
+		childMap := gitutils.BuildChildMap(allParents)
+		// Find all descendants of the *last* branch in the current stack
+		// This assumes the current checkout is somewhere within the stack of interest
+		tipOfCurrentStack := currentStack[len(currentStack)-1]
+		descendants := gitutils.FindAllDescendants(tipOfCurrentStack, childMap)
+
+		// Combine the current stack (base -> current -> tip) with any further descendants
+		fullStack := currentStack
+		processedDescendants := make(map[string]bool) // Avoid adding duplicates if currentStack already had some
+		for _, b := range currentStack {
+			processedDescendants[b] = true
+		}
+
+		// Simple append - order might not be perfect topological, but contains all nodes
+		// TODO: Improve ordering if needed later (e.g., topological sort)
+		for _, desc := range descendants {
+			if !processedDescendants[desc] {
+				fullStack = append(fullStack, desc)
+				processedDescendants[desc] = true
+			}
+		}
+		fmt.Printf("Full stack identified for processing: %v\n", fullStack)
+		// --- End Determine Full Stack ---
+		if len(fullStack) <= 1 {
 			fmt.Println("Current branch is the base or directly on base. Nothing to submit.")
 			return nil
 		}
@@ -77,9 +107,14 @@ and creates or updates corresponding GitHub Pull Requests.
 		prInfoMap := make(map[string]submittedPrInfo)
 
 		// 3. Iterate and Process Stack (skip base branch at index 0)
-		for i := 1; i < len(stack); i++ {
-			branch := stack[i]
-			parent := stack[i-1] // Base for the PR
+		for i := 1; i < len(fullStack); i++ {
+			branch := fullStack[i]
+			parent, ok := allParents[branch]
+			if !ok {
+				// This shouldn't happen if the branch came from tracking data
+				fmt.Fprintf(os.Stderr, ui.Colors.WarningStyle.Render("Warning: Could not find tracked parent for '%s'. Skipping processing.\n"), branch)
+				continue
+			}
 
 			fmt.Printf("\nProcessing branch: %s (parent: %s)\n",
 				ui.Colors.UserInputStyle.Render(branch),
@@ -308,8 +343,8 @@ and creates or updates corresponding GitHub Pull Requests.
 		if len(prInfoMap) == 0 {
 			fmt.Println("No pull requests were found or created. Skipping comment updates.")
 		} else {
-			for i := 1; i < len(stack); i++ { // Iterate through stack branches again
-				branch := stack[i]
+			for i := 1; i < len(fullStack); i++ { // Iterate through stack branches again
+				branch := fullStack[i]
 				prInfo, ok := prInfoMap[branch] // Check map for this specific branch
 				if !ok {
 					fmt.Printf("Skipping comment update for branch '%s': No PR info was stored.\n", branch)
@@ -318,7 +353,7 @@ and creates or updates corresponding GitHub Pull Requests.
 				// If we reach here, we *do* have PR info for this branch
 				fmt.Printf("Processing comment for branch %s, PR #%d...\n", branch, prInfo.Number)
 
-				commentBody := renderStackCommentBody(stack, branch, prInfoMap)
+				commentBody := renderStackCommentBody(fullStack, branch, prInfoMap)
 				fmt.Printf("  Generated comment body (length %d)\n", len(commentBody)) // DEBUG
 
 				// Get existing comment ID
