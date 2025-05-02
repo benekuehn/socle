@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -31,22 +32,20 @@ within a stack. This allows 'socle show' to display the specific stack you are o
 
 		// 2. Check if already tracked
 		parentConfigKey := fmt.Sprintf("branch.%s.socle-parent", currentBranch)
-		existingParent, err := gitutils.GetGitConfig(parentConfigKey)
+		existingParent, errGetParent := gitutils.GetGitConfig(parentConfigKey)
 		// We expect an error if the key doesn't exist, that's the non-tracked case.
 		// If err is nil or a different error occurs, handle it.
-		if err == nil && existingParent != "" {
+		if errGetParent == nil && existingParent != "" {
 			baseConfigKey := fmt.Sprintf("branch.%s.socle-base", currentBranch)
 			existingBase, _ := gitutils.GetGitConfig(baseConfigKey) // Ignore error here
 			fmt.Printf("Branch '%s' is already tracked.\n", currentBranch)
 			fmt.Printf("  Parent: %s\n", existingParent)
 			fmt.Printf("  Base:   %s\n", existingBase)
-			fmt.Println("\nTo change the parent, you might need an 'untrack' or 'retarget' command (not implemented yet).")
 			return nil // Not an error state, just info.
-		} else if err != nil && !strings.Contains(err.Error(), "exit status 1") {
+		} else if errGetParent != nil && !errors.Is(errGetParent, gitutils.ErrConfigNotFound) {
 			// Handle unexpected errors from git config
 			return fmt.Errorf("failed to check tracking status for branch '%s': %w", currentBranch, err)
 		}
-		// If we get here, the branch is not tracked (err contained "exit status 1")
 
 		// 3. Get potential parent branches
 		allBranches, err := gitutils.GetLocalBranches()

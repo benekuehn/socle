@@ -101,7 +101,7 @@ Process:
 		if shouldFetch {
 			fmt.Printf("Fetching latest '%s' from %s...\n", baseBranch, remoteName)
 			// Pass remote name to FetchBranch if it needs it
-			if err := gitutils.FetchBranch(baseBranch); err != nil {
+			if err := gitutils.FetchBranch(baseBranch, remoteName); err != nil {
 				return fmt.Errorf("failed to fetch base branch '%s': %w.\nUse --no-fetch to skip.", baseBranch, err)
 			}
 			fmt.Println(ui.Colors.SuccessStyle.Render("Fetch complete."))

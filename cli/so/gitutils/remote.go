@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+
+	"github.com/benekuehn/socle/cli/so/internal/ui"
 )
 
 // GetRemoteURL returns the fetch URL for a given remote.
@@ -83,18 +85,48 @@ func ParseOwnerAndRepo(remoteUrl string) (owner string, repo string, err error) 
 	return owner, repo, nil
 }
 
-// FetchBranch updates a local branch from the default remote (origin).
-func FetchBranch(branch string) error {
-	// Assuming remote is 'origin'. Could make configurable later.
-	remoteRef := fmt.Sprintf("origin/%s", branch)
-	localRef := fmt.Sprintf("refs/heads/%s", branch)
-	// Fetch directly into the local branch refspec
-	_, err := RunGitCommand("fetch", "origin", fmt.Sprintf("%s:%s", remoteRef, localRef))
-	// Handle cases where remote branch doesn't exist? Fetch might error.
+// FetchBranch updates the remote-tracking branch for a given local branch
+// from the specified remote (e.g., fetch 'origin' to update 'origin/master').
+func FetchBranch(branchName string, remoteName string) error {
+	fmt.Printf("  (Running: git fetch %s)\n", remoteName)
+	_, err := RunGitCommand("fetch", remoteName)
 	if err != nil {
-		// Check for specific errors if needed, e.g., remote branch not found.
-		return fmt.Errorf("failed to fetch '%s': %w", branch, err)
+		return fmt.Errorf("failed to fetch remote '%s': %w", remoteName, err)
 	}
+
+	// Optionally, after fetching, explicitly update the *local* branch
+	// to match the newly fetched remote-tracking branch. This makes sure
+	// the subsequent rebase uses the absolute latest code.
+	// Use merge --ff-only which is safe (only fast-forwards).
+	// Need to checkout the branch first.
+	currentBranch, cbErr := GetCurrentBranch()
+	if cbErr != nil {
+		return fmt.Errorf("fetch successful, but failed to get current branch to restore later: %w", cbErr)
+	}
+	if currentBranch != branchName {
+		fmt.Printf("  Checking out '%s' to update from remote...\n", branchName)
+		errCheckout := CheckoutBranch(branchName)
+		if errCheckout != nil {
+			return fmt.Errorf("fetch successful, but failed to checkout '%s' to update: %w", branchName, errCheckout)
+		}
+		// Defer switching back
+		defer func() {
+			fmt.Printf("  Switching back to %s...\n", currentBranch)
+			_ = CheckoutBranch(currentBranch) // Ignore error on cleanup
+		}()
+	}
+
+	remoteTrackingBranch := fmt.Sprintf("%s/%s", remoteName, branchName)
+	fmt.Printf("  Attempting fast-forward merge for '%s' from '%s'...\n", branchName, remoteTrackingBranch)
+	_, errMerge := RunGitCommand("merge", "--ff-only", remoteTrackingBranch)
+	if errMerge != nil {
+		// If ff-only fails, it means local branch has diverged or remote tracking branch wasn't updated correctly.
+		// Should we warn or error? Let's warn and proceed, the rebase will likely fail anyway if needed.
+		fmt.Println(ui.Colors.WarningStyle.Render(fmt.Sprintf("  Warning: Could not fast-forward local '%s'. It may have diverged from '%s'. Rebase will use local version.", branchName, remoteTrackingBranch)))
+	} else {
+		fmt.Println(ui.Colors.SuccessStyle.Render(fmt.Sprintf("  Local branch '%s' updated.", branchName)))
+	}
+
 	return nil
 }
 
