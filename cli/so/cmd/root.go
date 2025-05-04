@@ -9,14 +9,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var debugLogging bool
+var (
+	debugLogging bool
+	// version is set by ldflags during the build process
+	version = "dev" // Default value
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "so",
-	Short: "A CLI tool for managing stacked Git branches and GitHub PRs",
-	Long: `Socle helps streamline workflows involving stacked branches
-(sequences of dependent branches) on Git and GitHub.`,
+	Use:           "so",
+	Short:         "A CLI tool for managing stacked Git branches and GitHub PRs",
+	Long:          `Socle helps streamline workflows involving stacked branches\n(sequences of dependent branches) on Git and GitHub.`,
+	Version:       version,
 	SilenceErrors: true,
 	SilenceUsage:  true,
 

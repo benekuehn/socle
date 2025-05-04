@@ -1,0 +1,138 @@
+# .goreleaser.yml
+# Documentation: https://goreleaser.com
+
+# Make sure to create a GitHub token with `repo` scope and set it as GITHUB_TOKEN
+# See: https://goreleaser.com/ci/actions/
+
+project_name: socle
+
+# Set the Go module path if it's different from the repository name
+# go_module:
+#   path: github.com/benekuehn/socle
+
+# Environment variables used during build
+env:
+  # Tells goreleaser to run CGO builds for libraries that need it
+  # We probably don't need this for a pure Go CLI, but doesn't hurt
+  - CGO_ENABLED=0
+
+# Build configuration
+builds:
+  - # Build for the 'so' CLI
+    id: socle-cli
+    # Path to the main package relative to this directory (cli/so)
+    main: ./
+    # Output binary name
+    binary: so
+    # Environment variables for this specific build
+    env:
+      - CGO_ENABLED=0 # Ensure CGO is disabled for cross-compilation
+    # Go OS/Arch targets
+    # Reference: https://goreleaser.com/customization/build/#building-for-different-architectures
+    goos:
+      - linux
+      - windows
+      - darwin # macOS
+    goarch:
+      - amd64
+      - arm64 # For Apple Silicon and ARM servers
+    # Inject version information
+    # Path is relative to the main package defined above
+    ldflags:
+      - -s -w # Strip debug info and symbols to reduce binary size
+      # Path is still correct as it's the Go import path
+      - -X github.com/benekuehn/socle/cli/so/cmd.version={{ .Version }}
+      # Optionally add commit hash and build date
+      # - -X main.commit={{ .Commit }}
+      # - -X main.date={{ .Date }}
+
+# Archive configuration (creates .tar.gz and .zip)
+archives:
+  - id: socle-cli-archive
+    # Archive only the build ID matching the CLI
+    builds:
+      - socle-cli
+    # Archive name template
+    # Reference: https://goreleaser.com/customization/archive/
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    # Add useful files like README, LICENSE (paths relative to cli/so)
+    files:
+      - ../../LICENSE      # <-- Path to root LICENSE
+      - README.md        # <-- Path to cli/so/README.md
+
+# Generate checksums file
+checksum:
+  name_template: 'checksums.txt'
+
+# Create a GitHub Release
+# Reference: https://goreleaser.com/customization/release/
+release:
+  # Repo details are usually inferred from the Git remote URL
+  # github:
+  #   owner: benekuehn
+  #   name: socle
+
+  # Creates a draft release. Change to false to auto-publish.
+  draft: true
+
+  # Generates release notes based on commits since the last tag.
+  # Optional: Customize further https://goreleaser.com/customization/release/#release-notes
+  # changelog:
+  #   sort: asc
+  #   filters:
+  #     exclude:
+  #       - '^docs:'
+  #       - '^test:'
+
+# Homebrew Tap configuration
+# Reference: https://goreleaser.com/customization/homebrew/
+homebrew:
+  - # Tap repository details
+    tap:
+      owner: benekuehn
+      name: homebrew-socle # Your tap repository name
+      # Optional: Branch to push the formula to (defaults to main/master)
+      # branch: main
+      # Optional: Skip tap creation if it doesn't exist (defaults to false)
+
+    # Formula name will be <project_name>.rb (socle.rb)
+    # Optional: Specify a custom formula name
+    # name: "socle"
+
+    # Commit message template for the tap repository
+    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
+
+    # Link to your project's homepage
+    homepage: "https://github.com/benekuehn/socle"
+    # Description for the formula
+    description: "CLI tool for managing stacked Git branches"
+
+    # License for the formula
+    license: "MIT" # UPDATE THIS with your actual license
+
+    # Specify which build IDs this formula applies to
+    # Useful if you have multiple builds (e.g., server, cli)
+    # builds:
+    #   - socle-cli
+
+    # Optional: Add dependencies
+    # depends_on:
+    #   - name: git
+
+    # Optional: Add test block (GoReleaser generates a simple one by default)
+    # test: |
+    #   system "#{bin}/so --version"
+
+# Configuration for snapshot releases (testing without tagging)
+# Reference: https://goreleaser.com/customization/snapshots/
+snapshots:
+  name_template: "{{ incpatch .Version }}-next"
+
+# Changelog configuration (if not using auto-generated release notes)
+# https://goreleaser.com/customization/changelog/
+# changelog:
+#   sort: asc
+#   filters:
+#     exclude:
+#       - '^docs:'
+#       - '^test:' 
