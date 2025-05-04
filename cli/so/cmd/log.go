@@ -7,14 +7,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var showCmd = &cobra.Command{
-	Use:   "show",
+var logCmd = &cobra.Command{
+	Use:   "log",
 	Short: "Display the current tracked stack of branches",
 	Long: `Shows the sequence of tracked branches leading from the stack's base
 branch to the current branch, based on metadata set by 'socle track'.
 Includes status indicating if a branch needs rebasing onto its parent.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		runner := &showCmdRunner{
+		runner := &logCmdRunner{
 			logger: slog.Default(),
 			stdout: cmd.OutOrStdout(),
 			stderr: cmd.ErrOrStderr(),
@@ -24,5 +24,5 @@ Includes status indicating if a branch needs rebasing onto its parent.`,
 }
 
 func init() {
-	AddCommand(showCmd)
+	AddCommand(logCmd)
 }

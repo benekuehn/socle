@@ -95,6 +95,27 @@ so create [branch-name] [flags]
 
 ---
 
+### so log
+Shows the sequence of tracked branches leading from the stack's base
+branch to the current branch, based on metadata set by 'socle track'.
+Includes status indicating if a branch needs rebasing onto its parent.
+
+```
+so log [flags]
+```
+
+```
+  -h, --help   help for log
+```
+
+### Options inherited from parent commands
+
+```
+      --debug   Enable debug logging output
+```
+
+---
+
 ### so restack
 Updates the current stack by rebasing each branch sequentially onto its updated parent.
 Handles remote 'origin' automatically.
@@ -119,27 +140,6 @@ so restack [flags]
   -h, --help         help for restack
       --no-fetch     Skip fetching the remote base branch
       --no-push      Do not push branches after successful rebase
-```
-
-### Options inherited from parent commands
-
-```
-      --debug   Enable debug logging output
-```
-
----
-
-### so show
-Shows the sequence of tracked branches leading from the stack's base
-branch to the current branch, based on metadata set by 'socle track'.
-Includes status indicating if a branch needs rebasing onto its parent.
-
-```
-so show [flags]
-```
-
-```
-  -h, --help   help for show
 ```
 
 ### Options inherited from parent commands

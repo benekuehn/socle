@@ -1,4 +1,4 @@
-// cli/so/cmd/show_test.go
+// cli/so/cmd/log_test.go
 package cmd
 
 import (
@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestShowCommand(t *testing.T) {
-	t.Run("Show on base branch", func(t *testing.T) {
+func TestLogCommand(t *testing.T) {
+	t.Run("Log on base branch", func(t *testing.T) {
 		_, cleanup := testutils.SetupGitRepo(t) // Only need main branch
 		defer cleanup()
 
-		// Action: Run 'so show' while on main
-		stdout, stderr, err := runSoCommandWithOutput(t, "show")
+		// Action: Run 'so log' while on main
+		stdout, stderr, err := runSoCommandWithOutput(t, "log")
 
 		// Assertions
 		require.NoError(t, err)
@@ -24,15 +24,15 @@ func TestShowCommand(t *testing.T) {
 		assert.NotContains(t, stdout, "Current Stack Status:", "Should not print stack table")
 	})
 
-	t.Run("Show on untracked branch", func(t *testing.T) {
+	t.Run("Log on untracked branch", func(t *testing.T) {
 		repoPath, cleanup := testutils.SetupGitRepo(t)
 		defer cleanup()
 
 		// Setup: create branch but don't track
 		testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature-untracked")
 
-		// Action: Run 'so show'
-		stdout, stderr, err := runSoCommandWithOutput(t, "show")
+		// Action: Run 'so log'
+		stdout, stderr, err := runSoCommandWithOutput(t, "log")
 
 		// Assertions
 		require.NoError(t, err) // Should exit cleanly with info message
@@ -42,12 +42,12 @@ func TestShowCommand(t *testing.T) {
 		assert.NotContains(t, stdout, "Current Stack Status:")
 	})
 
-	t.Run("Show simple tracked stack (up-to-date, no PR)", func(t *testing.T) {
+	t.Run("Log simple tracked stack (up-to-date, no PR)", func(t *testing.T) {
 		_, cleanup := setupRepoWithStack(t, []string{"main", "feature-a", "feature-b"})
 		defer cleanup() // cd back happens here
 
-		// Action: Run 'so show' (currently on feature-b from setup)
-		stdout, _, err := runSoCommandWithOutput(t, "show")
+		// Action: Run 'so log' (currently on feature-b from setup)
+		stdout, _, err := runSoCommandWithOutput(t, "log")
 
 		// Assertions
 		require.NoError(t, err)
@@ -62,7 +62,7 @@ func TestShowCommand(t *testing.T) {
 		assert.Regexp(t, `->\s+feature-b\s+\(Up-to-date\)\s+\(PR: Not Submitted\)\s+\*`, stdout)
 	})
 
-	t.Run("Show stack needs restack (no PR)", func(t *testing.T) {
+	t.Run("Log stack needs restack (no PR)", func(t *testing.T) {
 		repoPath, cleanup := setupRepoWithStack(t, []string{"main", "feature-a", "feature-b"})
 		defer cleanup()
 
@@ -73,8 +73,8 @@ func TestShowCommand(t *testing.T) {
 		testutils.RunCommand(t, repoPath, "git", "commit", "-m", "change main")
 		testutils.RunCommand(t, repoPath, "git", "checkout", "feature-b") // Checkout tip
 
-		// Action: Run 'so show'
-		stdout, _, err := runSoCommandWithOutput(t, "show")
+		// Action: Run 'so log'
+		stdout, _, err := runSoCommandWithOutput(t, "log")
 
 		// Assertions
 		require.NoError(t, err)
@@ -87,15 +87,15 @@ func TestShowCommand(t *testing.T) {
 		assert.Regexp(t, `->\s+feature-b\s+\(Needs Restack\)\s+\(PR: Not Submitted\)\s+\*`, stdout) // feature-b also needs restack because its parent does
 	})
 
-	t.Run("Show stack with PR config (no API access)", func(t *testing.T) {
+	t.Run("Log stack with PR config (no API access)", func(t *testing.T) {
 		repoPath, cleanup := setupRepoWithStack(t, []string{"main", "feature-a"})
 		defer cleanup()
 
 		// Setup: Add PR config for feature-a
 		testutils.RunCommand(t, repoPath, "git", "config", "--local", "branch.feature-a.socle-pr-number", "123")
 
-		// Action: Run 'so show'
-		stdout, stderr, err := runSoCommandWithOutput(t, "show")
+		// Action: Run 'so log'
+		stdout, stderr, err := runSoCommandWithOutput(t, "log")
 
 		// Assertions
 		require.NoError(t, err)
@@ -106,15 +106,15 @@ func TestShowCommand(t *testing.T) {
 		assert.Regexp(t, `->\s+feature-a\s+\(Up-to-date\)\s+\(PR: Login/Setup Needed\)\s+\*`, stdout)
 	})
 
-	t.Run("Show stack with invalid PR config", func(t *testing.T) {
+	t.Run("Log stack with invalid PR config", func(t *testing.T) {
 		repoPath, cleanup := setupRepoWithStack(t, []string{"main", "feature-a"})
 		defer cleanup()
 
 		// Setup: Add invalid PR config for feature-a
 		testutils.RunCommand(t, repoPath, "git", "config", "--local", "branch.feature-a.socle-pr-number", "not-a-number")
 
-		// Action: Run 'so show'
-		stdout, stderr, err := runSoCommandWithOutput(t, "show")
+		// Action: Run 'so log'
+		stdout, stderr, err := runSoCommandWithOutput(t, "log")
 
 		// Assertions
 		require.NoError(t, err)

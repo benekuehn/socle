@@ -38,7 +38,7 @@ func SetupRootCommandForTest() *cobra.Command {
 	// This relies on the init() funcs in each command file calling AddCommand.
 	// Make sure trackCmd, showCmd etc. are defined in this package.
 	addCmd(trackCmd) // If trackCmd is lowercase, this works as it's same package
-	addCmd(showCmd)
+	addCmd(logCmd)
 	addCmd(createCmd)
 	addCmd(restackCmd)
 	addCmd(submitCmd)
@@ -59,7 +59,7 @@ func initializeCobraAppForTest() (*cobra.Command, error) {
 	testRootCmd.PersistentFlags().BoolVar(&testDebugLogging, "debug", false, "Enable debug logging output")
 	addCmd := func(c *cobra.Command) { testRootCmd.AddCommand(c) }
 	addCmd(trackCmd)
-	addCmd(showCmd)
+	addCmd(logCmd)
 	addCmd(createCmd)
 	addCmd(restackCmd)
 	addCmd(submitCmd)

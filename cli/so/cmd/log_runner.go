@@ -20,13 +20,13 @@ type statusResult struct {
 	render func(string) string
 }
 
-type showCmdRunner struct {
+type logCmdRunner struct {
 	logger *slog.Logger
 	stdout io.Writer
 	stderr io.Writer
 }
 
-func (r *showCmdRunner) run(ctx context.Context) error {
+func (r *logCmdRunner) run(ctx context.Context) error {
 	currentBranch, stack, baseBranch, err := git.GetCurrentStackInfo()
 	handled, processedErr := cmdutils.HandleStartupError(err, currentBranch, r.stdout, r.stderr)
 	if processedErr != nil {
