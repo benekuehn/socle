@@ -62,6 +62,14 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&debugLogging, "debug", false, "Enable debug logging output")
 }
 
+// GetRootCmd returns the root command instance.
+// It's used by the doc generator.
+func GetRootCmd() *cobra.Command {
+	// Ensure all subcommands are added via their init() functions
+	// before this is called.
+	return rootCmd
+}
+
 func AddCommand(cmd *cobra.Command) {
 	rootCmd.AddCommand(cmd)
 }

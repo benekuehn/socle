@@ -29,13 +29,13 @@ go version
 ### Step 2: Configure Go Environment PATH
 The ⁠go install command places compiled binaries in the ⁠bin subdirectory of your ⁠GOPATH, or the directory specified by the ⁠GOBIN environment variable if it's set. You need to add this directory to your shell's ⁠PATH variable.
 1. Find your Go bin directory:
- go env GOPATH GOBIN
+go env GOPATH GOBIN
 - If GOBIN is set, that's your directory.
 - If GOBIN is not set, your directory is ⁠$GOPATH/bin. Based on your previous output, this is likely `/Users/<your-username>/go/bin`. A common default is `$HOME/go/bin`.
 2.	Add the directory to your PATH:
 Edit your ⁠~/.zshrc file (e.g., `nano ~/.zshrc`). Add the following line (adjust the path if yours is different):
 ```bash
- export PATH="/Users/benekuehn/go/bin:$PATH"
+export PATH="/Users/benekuehn/go/bin:$PATH"
 # Or use the general form:
 # export PATH="$HOME/go/bin:$PATH"
 ```
@@ -44,7 +44,7 @@ Edit your ⁠~/.zshrc file (e.g., `nano ~/.zshrc`). Add the following line (adju
 ### Step 3: Install so from Source
 Navigate to the so CLI directory within the monorepo and run go install:
 ```bash
- # Assuming you are in the root of the monorepo
+# Assuming you are in the root of the monorepo
 cd cli
 go install .
 cd .. # Go back to root if needed
@@ -66,54 +66,137 @@ so --help
 ## Basic Usage
 Most so commands need to be run from within a Git repository.
 
-### Core Commands:
-#### track
-- Use this command when you are on a branch that you want to start tracking as part of a stack.
-- It will prompt you to select the parent branch for the current branch.
-- This stores the parent-child relationship and the stack's base branch in your local `.git/config`.
+<!-- CLI_REFERENCE_START -->
+*This section is auto-generated. Do not edit manually.*
 
-```bash
-git checkout "<branch-name>" && so track #(select ⁠main as parent).
+### so create
+Creates a new branch stacked on top of the current branch.
+
+If a [branch-name] is not provided, you will be prompted for one.
+
+If there are uncommitted changes in the working directory:
+  - They will be staged and committed onto the *new* branch.
+  - You must provide a commit message via the -m flag, or you will be prompted.
+
+```
+so create [branch-name] [flags]
 ```
 
-#### show
-- Displays the current stack of branches you are on, based on the tracking information set by ⁠so track.
-- Shows the lineage from the base branch up to your current branch, marking the current one.
-- If the current branch isn't tracked, it will prompt you to use ⁠so track.
-
-```bash
-so show
+```
+  -h, --help             help for create
+  -m, --message string   Commit message to use for uncommitted changes
 ```
 
-#### create
-- Creates a new branch stacked on top of your current tracked branch.
-- Your current branch must be tracked first (use ⁠so track).
-- If `[new-branch-name]` is omitted, you'll be prompted.
-- If you have uncommitted changes, you'll be prompted for a commit message (or use `-m <message>`) and how to stage changes (`git add .` or `git add -p`).
-- The changes will be committed on the new branch.
-- Automatically tracks the new branch with the current branch as its parent.
+### Options inherited from parent commands
 
-```bash
-⁠so create "<new-branch-name>" -m "<message>"
+```
+      --debug   Enable debug logging output
 ```
 
-#### restack
-- Rebases the entire current stack onto the latest version of its base branch (e.g., ⁠main).
-- Requires Git >= 2.38 and uses `git rebase --update-refs.`
-- Fetches the base branch from ⁠origin by default (use `--no-fetch` to skip).
-- If conflicts occur, ⁠so will stop and instruct you to use standard `git rebase --continue` or `git rebase --abort` commands after resolving conflicts.
+---
 
-```bash
-so restack
+### so restack
+Updates the current stack by rebasing each branch sequentially onto its updated parent.
+Handles remote 'origin' automatically.
+
+Process:
+1. Checks for clean state & existing Git rebase.
+2. Fetches the base branch from 'origin' (unless --no-fetch).
+3. Rebases each branch in the stack onto the latest commit of its parent.
+   - Skips branches that are already up-to-date.
+4. If conflicts occur:
+   - Stops and instructs you to use standard Git commands (status, add, rebase --continue / --abort).
+   - Run 'so restack' again after resolving or aborting the Git rebase.
+5. If successful:
+   - Prompts to force-push updated branches to 'origin' (use --force-push or --no-push to skip prompt).
+
+```
+so restack [flags]
 ```
 
-Getting Help:
-You can get help for any command by using the `--help` flag:
-```bash
-so --help
-so track --help
-so create --help
 ```
+      --force-push   Force push rebased branches without prompting
+  -h, --help         help for restack
+      --no-fetch     Skip fetching the remote base branch
+      --no-push      Do not push branches after successful rebase
+```
+
+### Options inherited from parent commands
+
+```
+      --debug   Enable debug logging output
+```
+
+---
+
+### so show
+Shows the sequence of tracked branches leading from the stack's base
+branch to the current branch, based on metadata set by 'socle track'.
+Includes status indicating if a branch needs rebasing onto its parent.
+
+```
+so show [flags]
+```
+
+```
+  -h, --help   help for show
+```
+
+### Options inherited from parent commands
+
+```
+      --debug   Enable debug logging output
+```
+
+---
+
+### so submit
+Pushes branches in the current stack to the remote ('origin' by default)
+and creates or updates corresponding GitHub Pull Requests.
+
+- Requires GITHUB_TOKEN environment variable with 'repo' scope.
+- Reads PR templates from .github/ or root directory.
+- Creates Draft PRs by default (use --no-draft to override).
+- Stores PR numbers locally in '.git/config' for future updates.
+
+```
+so submit [flags]
+```
+
+```
+      --force      Force push branches
+  -h, --help       help for submit
+      --no-draft   Create non-draft Pull Requests
+      --no-push    Skip pushing branches to remote
+```
+
+### Options inherited from parent commands
+
+```
+      --debug   Enable debug logging output
+```
+
+---
+
+### so track
+Associates the current branch with a parent branch to define its position
+within a stack. This allows 'socle show' to display the specific stack you are on.
+
+```
+so track [flags]
+```
+
+```
+  -h, --help   help for track
+```
+
+### Options inherited from parent commands
+
+```
+      --debug   Enable debug logging output
+```
+<!-- CLI_REFERENCE_END -->
+
 
 ### Configuration
 so stores stack relationship metadata directly in your local repository's configuration file (⁠.git/config) using ⁠git config.
