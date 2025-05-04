@@ -23,6 +23,17 @@ type Client struct {
 	Ctx   context.Context // Background context for requests
 }
 
+type ClientInterface interface {
+	GetPullRequest(number int) (*github.PullRequest, error)
+	CreatePullRequest(head, base, title, body string, isDraft bool) (*github.PullRequest, error)
+	UpdatePullRequestBase(number int, newBase string) (*github.PullRequest, error)
+	CreateComment(issueNumber int, body string) (*github.IssueComment, error)
+	UpdateComment(commentID int64, body string) (*github.IssueComment, error)
+	FindCommentWithMarker(issueNumber int, marker string) (commentID int64, err error)
+}
+
+var _ ClientInterface = (*Client)(nil)
+
 // NewClient creates a new GitHub client using GITHUB_TOKEN.
 func NewClient(ctx context.Context, owner, repo string) (*Client, error) {
 	token := os.Getenv("GITHUB_TOKEN")

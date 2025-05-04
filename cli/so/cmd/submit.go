@@ -23,6 +23,10 @@ var (
 	submitForcePush bool
 	submitNoPush    bool
 	submitDraft     = true // Default set in flag definition
+	// --- TESTING FLAGS ---
+	testSubmitTitle       string
+	testSubmitBody        string
+	testSubmitEditConfirm bool
 )
 
 // Struct to hold PR info needed for comments
@@ -30,6 +34,10 @@ type submittedPrInfo struct {
 	Number int
 	URL    string
 	Title  string // Add title for comment rendering
+}
+
+var createGHClient = func(ctx context.Context, owner, repo string) (gh.ClientInterface, error) {
+	return gh.NewClient(ctx, owner, repo) // Default implementation calls the real constructor
 }
 
 var submitCmd = &cobra.Command{
@@ -61,10 +69,13 @@ and creates or updates corresponding GitHub Pull Requests.
 		if err != nil {
 			return fmt.Errorf("cannot parse owner/repo from remote '%s' URL '%s': %w", remoteName, remoteURL, err)
 		}
-		ghClient, err := gh.NewClient(ctx, owner, repoName)
+
+		ghClient, err := createGHClient(ctx, owner, repoName)
 		if err != nil {
+			// Handle client creation error (e.g., auth failure)
 			return fmt.Errorf("failed to create GitHub client: %w", err)
 		}
+		slog.Debug("GitHub client created/obtained")
 		slog.Debug("Operating on repository:", "owner", owner, "repoName", repoName)
 
 		// --- Get Stack Info ---
@@ -251,52 +262,72 @@ and creates or updates corresponding GitHub Pull Requests.
 
 				// Prompt user for title, using the determined default
 				title := ""
-				titlePrompt := &survey.Input{
-					Message: "Pull Request Title:",
-					Default: defaultTitle, // Use determined default
-				}
-				err = survey.AskOne(titlePrompt, &title, survey.WithValidator(survey.Required), survey.WithStdio(os.Stdin, os.Stderr, os.Stderr))
-				if err != nil {
-					return handleSurveyInterrupt(err, "Submit cancelled.")
+				if testSubmitTitle != "" {
+					title = testSubmitTitle
+				} else {
+					titlePrompt := &survey.Input{
+						Message: "Pull Request Title:",
+						Default: defaultTitle, // Use determined default
+					}
+
+					err = survey.AskOne(titlePrompt, &title, survey.WithValidator(survey.Required), survey.WithStdio(os.Stdin, os.Stderr, os.Stderr))
+					if err != nil {
+						return handleSurveyInterrupt(err, "Submit cancelled.")
+					}
 				}
 
 				// --- Get body (with template) ---
 				body := ""
-				templateContent, errTpl := gitutils.FindAndReadPRTemplate()
-				if errTpl != nil {
-					fmt.Fprintf(os.Stderr, ui.Colors.WarningStyle.Render("Warning: Failed to read PR template: %v\n"), errTpl)
-				}
-
-				editBody := false // Default to not editing
-				if templateContent != "" {
-					fmt.Println("Found PR template.")
-					prompt := &survey.Confirm{Message: "Edit description before submitting?", Default: false}
-					err = survey.AskOne(prompt, &editBody, survey.WithStdio(os.Stdin, os.Stderr, os.Stderr))
-					if err != nil {
-						return handleSurveyInterrupt(err, "Submit cancelled.")
-					}
+				if testSubmitBody != "" {
+					slog.Debug("Using body from test flag", "testBody", testSubmitBody)
+					body = testSubmitBody
 				} else {
-					// No template, maybe still offer edit? Or just use empty default?
-					// Let's default to empty and maybe offer edit later if needed.
-					fmt.Println("No PR template found. Using empty description.")
-				}
+					// Only run template/prompt logic if test flag wasn't used
+					templateContent, errTpl := gitutils.FindAndReadPRTemplate()
+					if errTpl != nil {
+						slog.Warn("Failed to read PR template", "error", errTpl)
+					}
 
-				if editBody {
-					// Open editor
-					editorPrompt := &survey.Editor{
-						Message:       "Pull Request Body (Markdown):",
-						FileName:      "*.md",
-						Default:       templateContent,
-						HideDefault:   templateContent == "",
-						AppendDefault: false,
+					editBody := false // Default to not editing
+					if templateContent != "" {
+						fmt.Println("Found PR template.")
+						// Check if test flag forces edit confirmation
+						if testSubmitEditConfirm {
+							slog.Debug("Using edit confirmation from test flag")
+							editBody = true
+						} else {
+							prompt := &survey.Confirm{Message: "Edit description before submitting?", Default: false}
+							err = survey.AskOne(prompt, &editBody, survey.WithStdio(os.Stdin, os.Stderr, os.Stderr))
+							if err != nil {
+								return handleSurveyInterrupt(err, "Submit cancelled.")
+							}
+						}
+					} else {
+						fmt.Println("No PR template found. Using empty description.")
+						// Optional: Check testSubmitEditConfirm here too if you want to allow editing empty body in tests
 					}
-					err = survey.AskOne(editorPrompt, &body, survey.WithStdio(os.Stdin, os.Stderr, os.Stderr))
-					if err != nil {
-						return handleSurveyInterrupt(err, "Submit cancelled.")
+
+					if editBody {
+						if testSubmitTitle != "" {
+							body = testSubmitBody
+						} else {
+							// Open editor
+							editorPrompt := &survey.Editor{
+								Message:       "Pull Request Body (Markdown):",
+								FileName:      "*.md",
+								Default:       templateContent,
+								HideDefault:   templateContent == "",
+								AppendDefault: false,
+							}
+							err = survey.AskOne(editorPrompt, &body, survey.WithStdio(os.Stdin, os.Stderr, os.Stderr))
+							if err != nil {
+								return handleSurveyInterrupt(err, "Submit cancelled.")
+							}
+						}
+					} else {
+						// Use template content directly (or empty if no template)
+						body = templateContent
 					}
-				} else {
-					// Use template content directly (or empty if no template)
-					body = templateContent
 				}
 
 				// Create PR call
@@ -496,4 +527,10 @@ func init() {
 	submitCmd.Flags().BoolVar(&submitForcePush, "force", false, "Force push branches ('git push --force')")
 	submitCmd.Flags().BoolVar(&submitNoPush, "no-push", false, "Skip pushing branches to the remote")
 	submitCmd.Flags().BoolVar(&submitDraft, "draft", true, "Create new pull requests as drafts")
+	submitCmd.Flags().StringVar(&testSubmitTitle, "test-title", "", "PR Title (testing only)")
+	submitCmd.Flags().StringVar(&testSubmitBody, "test-body", "", "PR Body (testing only)")
+	submitCmd.Flags().BoolVar(&testSubmitEditConfirm, "test-edit-confirm", false, "Simulate confirming 'Edit description?' (testing only)")
+	_ = submitCmd.Flags().MarkHidden("test-title")
+	_ = submitCmd.Flags().MarkHidden("test-body")
+	_ = submitCmd.Flags().MarkHidden("test-edit-confirm")
 }
