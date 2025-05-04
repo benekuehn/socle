@@ -124,7 +124,7 @@ brews:
 
 # Configuration for snapshot releases (testing without tagging)
 # Reference: https://goreleaser.com/customization/snapshots/
-snapshots:
+snapshot:
   name_template: "{{ incpatch .Version }}-next"
 
 # Changelog configuration (if not using auto-generated release notes)
