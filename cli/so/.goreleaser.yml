@@ -87,7 +87,7 @@ release:
 # Reference: https://goreleaser.com/customization/homebrew/
 brews:
   - # Tap repository details
-    tap:
+    repository:
       owner: benekuehn
       name: homebrew-socle # Your tap repository name
       # Optional: Branch to push the formula to (defaults to main/master)
