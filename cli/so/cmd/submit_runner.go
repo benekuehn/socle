@@ -10,6 +10,7 @@ import (
 
 	"github.com/benekuehn/socle/cli/so/gitutils"
 	"github.com/benekuehn/socle/cli/so/internal/actions"
+	"github.com/benekuehn/socle/cli/so/internal/cmdutils"
 	"github.com/benekuehn/socle/cli/so/internal/gh"
 	"github.com/benekuehn/socle/cli/so/internal/ui"
 	"github.com/spf13/cobra"
@@ -112,7 +113,7 @@ func (r *submitCmdRunner) prepareSubmit(ctx context.Context) ([]string, map[stri
 
 	// Handle potential startup issues (like not being in a git repo or stack)
 	currentBranch, currentStack, _, err := gitutils.GetCurrentStackInfo()
-	handled, processedErr := handleShowStartupError(err, currentBranch, r.stdout, r.stderr)
+	handled, processedErr := cmdutils.HandleStartupError(err, currentBranch, r.stdout, r.stderr)
 	if processedErr != nil {
 		return nil, nil, processedErr
 	}
