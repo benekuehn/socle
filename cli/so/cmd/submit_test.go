@@ -65,6 +65,14 @@ func (m *MockGHClient) FindCommentWithMarker(issueNumber int, marker string) (co
 	return args.Get(0).(int64), args.Error(1) // Assert type for int64
 }
 
+func (m *MockGHClient) GetIssueComment(commentID int64) (*github.IssueComment, error) {
+	args := m.Called(commentID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*github.IssueComment), args.Error(1)
+}
+
 func TestSubmitCommand(t *testing.T) {
 	originalCreateGHClient := createGHClient // Store original
 	// Restore original after all tests in this function finish
@@ -144,6 +152,11 @@ func TestSubmitCommand(t *testing.T) {
 		).Once()
 		// Expect FindComment for PR 101 (feature-a) - should return existing comment ID 5001
 		mockClient.On("FindCommentWithMarker", 101, mock.AnythingOfType("string")).Return(int64(5001), nil).Once()
+		// Expect GetIssueComment to fetch the comment for comparison
+		mockClient.On("GetIssueComment", int64(5001)).Return(
+			&github.IssueComment{ID: github.Ptr(int64(5001)), Body: github.Ptr("Old comment body")}, // Return some body to trigger update check
+			nil,
+		).Once()
 		// Assume base doesn't need update: UpdatePullRequestBase NOT called
 		// Expect comment update for feature-a's PR (comment ID 5001)
 		expectedBody101 := "**Stack Overview:**\n\n* **#101**  👈\n* **#102** \n* `main` (base)\n\n<!-- socle-stack-overview -->\n"

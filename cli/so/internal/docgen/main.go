@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"sort"
 	"strings"
 
@@ -27,15 +26,6 @@ const (
 	generatedDocsHeader = "## CLI Command Reference"                                // Keep this header
 	autoGenNotice       = "*This section is auto-generated. Do not edit manually.*" // Keep this notice
 )
-
-// Helper function to get the directory of the current Go source file
-func getSourceDir() string {
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		log.Fatal("Could not get caller information")
-	}
-	return filepath.Dir(filename)
-}
 
 // cleanMarkdown removes boilerplate and reformats Cobra's generated Markdown.
 func cleanMarkdown(content []byte, isRoot bool) []byte {
@@ -97,7 +87,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to create temporary directory: %v", err)
 		}
-		defer os.RemoveAll(tempDir) // Clean up the temp directory
+		defer func() { _ = os.RemoveAll(tempDir) }() // Clean up the temp directory
 
 		log.Printf("Generating Markdown documentation in temporary directory %s", tempDir)
 

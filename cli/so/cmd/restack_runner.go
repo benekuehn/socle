@@ -29,9 +29,9 @@ type restackCmdRunner struct {
 func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 	// --- Pre-Checks ---
 	if git.IsRebaseInProgress() {
-		fmt.Fprintln(r.stderr, ui.Colors.InfoStyle.Render("Git rebase already in progress."))
-		fmt.Fprintln(r.stderr, ui.Colors.InfoStyle.Render("Resolve conflicts and run 'git rebase --continue' or cancel with 'git rebase --abort'."))
-		fmt.Fprintln(r.stderr, ui.Colors.InfoStyle.Render("Once the Git rebase is finished, run 'so restack' again if needed."))
+		_, _ = fmt.Fprintln(r.stderr, ui.Colors.InfoStyle.Render("Git rebase already in progress."))
+		_, _ = fmt.Fprintln(r.stderr, ui.Colors.InfoStyle.Render("Resolve conflicts and run 'git rebase --continue' or cancel with 'git rebase --abort'."))
+		_, _ = fmt.Fprintln(r.stderr, ui.Colors.InfoStyle.Render("Once the Git rebase is finished, run 'so restack' again if needed."))
 		cmd.SilenceUsage = true // Prevent usage printing on clean exit
 		return nil              // Exit cleanly, user needs to act in Git
 	}
@@ -53,7 +53,7 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 		return err
 	}
 	if len(stack) <= 1 {
-		fmt.Fprintln(r.stdout, "Current branch is the base or directly on base. Nothing to restack.")
+		_, _ = fmt.Fprintln(r.stdout, "Current branch is the base or directly on base. Nothing to restack.")
 		return nil
 	}
 
@@ -66,7 +66,7 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 				r.logger.Debug("Checking out original branch", "name", originalBranch)
 				errCheckout := git.CheckoutBranch(originalBranch)
 				if errCheckout != nil {
-					fmt.Fprintf(r.stderr, ui.Colors.WarningStyle.Render("Warning: Failed to checkout original branch '%s': %v\n"), originalBranch, errCheckout)
+					_, _ = fmt.Fprintf(r.stderr, ui.Colors.WarningStyle.Render("Warning: Failed to checkout original branch '%s': %v\\n"), originalBranch, errCheckout)
 				}
 			}
 		}
@@ -90,9 +90,9 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 		r.logger.Debug("Fetching latest", "baseBranch", baseBranch, "remoteName", remoteName)
 		// Pass remote name to FetchBranch if it needs it
 		if err := git.FetchBranch(baseBranch, remoteName); err != nil {
-			return fmt.Errorf("failed to fetch base branch '%s': %w.\nUse --no-fetch to skip", baseBranch, err)
+			return fmt.Errorf("failed to fetch base branch '%s': %w.\\nUse --no-fetch to skip", baseBranch, err)
 		}
-		fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("Fetch complete."))
+		_, _ = fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("Fetch complete."))
 	} else if r.noFetch {
 		r.logger.Debug("Skipping fetch (--no-fetch).")
 	}
@@ -118,7 +118,7 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 		if errMB != nil {
 			// If merge-base fails, maybe the branches have diverged significantly?
 			// Warn and proceed with rebase attempt.
-			fmt.Fprintln(r.stdout, ui.Colors.WarningStyle.Render(fmt.Sprintf("  Warning: Could not find merge base between '%s' and '%s': %v. Attempting rebase anyway.", parent, branch, errMB)))
+			_, _ = fmt.Fprintln(r.stdout, ui.Colors.WarningStyle.Render(fmt.Sprintf("  Warning: Could not find merge base between '%s' and '%s': %v. Attempting rebase anyway.", parent, branch, errMB)))
 		} else if mergeBase == parentOID {
 			r.logger.Debug("Branch is already based on current parent. Skipping rebase.", "branch", branch, "parent", parent)
 			rebasedBranches = append(rebasedBranches, branch) // Add to list even if skipped, as it's confirmed correct
@@ -143,14 +143,14 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 		// Handle Rebase Failure
 		if errors.Is(err, git.ErrRebaseConflict) {
 			// CONFLICT Case
-			fmt.Fprintln(r.stderr, "")
-			fmt.Fprintln(r.stderr, ui.Colors.WarningStyle.Render("⚠️ Rebase paused due to conflicts."))
-			fmt.Fprintln(r.stderr, "Restack paused due to conflicts.")
-			fmt.Fprintf(r.stderr, "Please resolve the conflicts in branch '%s' and then run:\n", branch)
-			fmt.Fprintln(r.stderr, "  1. Run 'git add <resolved-files...>'.")
-			fmt.Fprintln(r.stderr, "  2. Run 'git rebase --continue'.")
-			fmt.Fprintln(r.stderr, "   (To cancel, run 'git rebase --abort')")
-			fmt.Fprintln(r.stderr, "   Once the Git rebase is complete, run 'so restack' again.")
+			_, _ = fmt.Fprintln(r.stderr, "")
+			_, _ = fmt.Fprintln(r.stderr, ui.Colors.WarningStyle.Render("⚠️ Rebase paused due to conflicts."))
+			_, _ = fmt.Fprintln(r.stderr, "Restack paused due to conflicts.")
+			_, _ = fmt.Fprintf(r.stderr, "Please resolve the conflicts in branch '%s' and then run:\\n", branch)
+			_, _ = fmt.Fprintln(r.stderr, "  1. Run 'git add <resolved-files...>'.")
+			_, _ = fmt.Fprintln(r.stderr, "  2. Run 'git rebase --continue'.")
+			_, _ = fmt.Fprintln(r.stderr, "   (To cancel, run 'git rebase --abort')")
+			_, _ = fmt.Fprintln(r.stderr, "   Once the Git rebase is complete, run 'so restack' again.")
 
 			cmd.SilenceUsage = true // Prevent usage printing
 			return nil              // Exit cleanly, user needs to use Git
@@ -162,7 +162,7 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 	}
 
 	// --- Post-Success ---
-	fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("\n--- Stack Rebase Completed Successfully ---"))
+	_, _ = fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("\n--- Stack Rebase Completed Successfully ---"))
 
 	// Determine if push is desired
 	doPush := false
@@ -186,7 +186,7 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 			if err.Error() == "interrupt" {
 				return ui.HandleSurveyInterrupt(err, "Push cancelled.")
 			}
-			fmt.Fprintf(r.stderr, "Push prompt failed: %v. Skipping push.\n", err)
+			_, _ = fmt.Fprintf(r.stderr, "Push prompt failed: %v. Skipping push.\n", err)
 		}
 		doPush = confirmPush
 	}
@@ -196,15 +196,15 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 		r.logger.Debug("Force Pushing Updated Branches", "remoteName", remoteName, "count", len(rebasedBranches))
 		pushSuccessCount := 0
 		for _, branch := range rebasedBranches {
-			fmt.Fprintf(r.stdout, "Pushing %s... ", branch)
+			_, _ = fmt.Fprintf(r.stdout, "Pushing %s... ", branch)
 			err := git.PushBranchWithLease(branch, remoteName) // Use force-with-lease
 			if err != nil {
-				fmt.Fprintln(r.stdout, ui.Colors.FailureStyle.Render("Failed!"))
+				_, _ = fmt.Fprintln(r.stdout, ui.Colors.FailureStyle.Render("Failed!"))
 				// Log error but continue trying other branches? Or abort?
-				fmt.Fprintf(r.stderr, "  Error pushing %s: %v\n", branch, err)
+				_, _ = fmt.Fprintf(r.stderr, "  Error pushing %s: %v\n", branch, err)
 				// Let's continue for now
 			} else {
-				fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("Success."))
+				_, _ = fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("Success."))
 				pushSuccessCount++
 			}
 		}

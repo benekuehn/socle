@@ -58,7 +58,7 @@ func init() {
 	submitCmd.Flags().String("test-title", "", "TESTING: Override PR title")
 	submitCmd.Flags().String("test-body", "", "TESTING: Override PR body")
 	submitCmd.Flags().Bool("test-edit-confirm", false, "TESTING: Confirm edit prompt")
-	submitCmd.Flags().MarkHidden("test-title")
-	submitCmd.Flags().MarkHidden("test-body")
-	submitCmd.Flags().MarkHidden("test-edit-confirm")
+	_ = submitCmd.Flags().MarkHidden("test-title")
+	_ = submitCmd.Flags().MarkHidden("test-body")
+	_ = submitCmd.Flags().MarkHidden("test-edit-confirm")
 }

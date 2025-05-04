@@ -35,18 +35,18 @@ func (r *showCmdRunner) run(ctx context.Context) error {
 	if handled {
 		return nil
 	}
-	fmt.Fprintf(r.stdout, "Current branch: %s (Stack base: %s)\n", currentBranch, baseBranch)
+	_, _ = fmt.Fprintf(r.stdout, "Current branch: %s (Stack base: %s)\n", currentBranch, baseBranch)
 
 	var ghClient *gh.Client
 	var ghClientErr error
-	var ghClientInitialized bool = false
+	var ghClientInitialized = false
 
-	fmt.Fprintln(r.stdout, "\nCurrent Stack Status:")
+	_, _ = fmt.Fprintln(r.stdout, "\nCurrent Stack Status:")
 	baseMarker := ""
 	if baseBranch == currentBranch {
 		baseMarker = " *"
 	}
-	fmt.Fprintf(r.stdout, "  %s (base)%s\n", baseBranch, baseMarker)
+	_, _ = fmt.Fprintf(r.stdout, "  %s (base)%s\n", baseBranch, baseMarker)
 
 	ancestorNeedsRestack := false
 
@@ -67,7 +67,7 @@ func (r *showCmdRunner) run(ctx context.Context) error {
 			marker = " *"
 		}
 
-		fmt.Fprintf(r.stdout, "  -> %s %s %s%s\n",
+		_, _ = fmt.Fprintf(r.stdout, "  -> %s %s %s%s\n",
 			branchName,
 			rebaseStatus.render(rebaseStatus.text),
 			prStatus.render(prStatus.text),
@@ -83,7 +83,7 @@ func getRebaseStatus(parentName, branchName string, errW io.Writer) statusResult
 	needsRestack, errCheck := git.NeedsRestack(parentName, branchName)
 
 	if errCheck != nil {
-		fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("  Warning: Could not check restack status for '%s': %v\n"), branchName, errCheck)
+		_, _ = fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("  Warning: Could not check restack status for '%s': %v\n"), branchName, errCheck)
 		return statusResult{"(Rebase: Error)", func(s string) string { return ui.Colors.FailureStyle.Render(s) }}
 	} else if needsRestack {
 		return statusResult{"(Needs Restack)", func(s string) string { return ui.Colors.WarningStyle.Render(s) }}
@@ -102,7 +102,7 @@ func getPrStatusDisplay(ctx context.Context, ghClient **gh.Client, clientErr *er
 	if errors.Is(errPRNum, git.ErrConfigNotFound) {
 		return statusResult{"(PR: Not Submitted)", defaultRender}
 	} else if errPRNum != nil {
-		fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("  Warning: Could not read PR number config for '%s': %v\n"), branchName, errPRNum)
+		_, _ = fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("  Warning: Could not read PR number config for '%s': %v\n"), branchName, errPRNum)
 		return statusResult{"(PR: Config Err)", func(s string) string { return ui.Colors.FailureStyle.Render(s) }}
 	}
 
@@ -112,7 +112,7 @@ func getPrStatusDisplay(ctx context.Context, ghClient **gh.Client, clientErr *er
 
 	prNumber, errParsePR := strconv.Atoi(prNumberStr)
 	if errParsePR != nil {
-		fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("  Warning: Could not parse PR number '%s' for '%s': %v\n"), prNumberStr, branchName, errParsePR)
+		_, _ = fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("  Warning: Could not parse PR number '%s' for '%s': %v\n"), prNumberStr, branchName, errParsePR)
 		return statusResult{"(PR: Invalid #)", func(s string) string { return ui.Colors.FailureStyle.Render(s) }}
 	}
 
@@ -136,7 +136,7 @@ func getPrStatusDisplay(ctx context.Context, ghClient **gh.Client, clientErr *er
 			}
 		}
 		if *clientErr != nil {
-			fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("Warning: Cannot fetch PR status: %v\n"), *clientErr)
+			_, _ = fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("Warning: Cannot fetch PR status: %v\n"), *clientErr)
 		}
 	}
 
@@ -146,7 +146,7 @@ func getPrStatusDisplay(ctx context.Context, ghClient **gh.Client, clientErr *er
 
 	semanticStatus, _, errGetStatus := (*ghClient).GetPullRequestStatus(prNumber)
 	if errGetStatus != nil {
-		fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("  Warning: Could not fetch PR #%d for '%s': %v\n"), prNumber, branchName, errGetStatus)
+		_, _ = fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("  Warning: Could not fetch PR #%d for '%s': %v\n"), prNumber, branchName, errGetStatus)
 		statusText := fmt.Sprintf("(PR #%d: API Error)", prNumber)
 		return statusResult{statusText, func(s string) string { return ui.Colors.FailureStyle.Render(s) }}
 	}

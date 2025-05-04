@@ -129,7 +129,7 @@ func (r *createCmdRunner) run() error {
 	cleanupNeeded := true
 	defer func() {
 		if cleanupNeeded {
-			fmt.Fprintf(r.stderr, "Cleaning up branch '%s' due to error...\n", newBranchName)
+			_, _ = fmt.Fprintf(r.stderr, "Cleaning up branch '%s' due to error...\\n", newBranchName)
 			// Best effort cleanup: try to switch back and delete created branch
 			_ = git.CheckoutBranch(parentBranch)
 			_ = git.BranchDelete(newBranchName)
@@ -214,15 +214,15 @@ func (r *createCmdRunner) run() error {
 			if haveStaged {
 				r.logger.Debug("Committing staged changes", "message", commitMsg)
 				if err := git.CommitChanges(commitMsg); err != nil {
-					fmt.Fprint(r.stderr, ui.Colors.FailureStyle.Render("Commit failed (hooks?). Aborting.\n"))
+					_, _ = fmt.Fprint(r.stderr, ui.Colors.FailureStyle.Render("Commit failed (hooks?). Aborting.\\n"))
 					return fmt.Errorf("failed to commit changes: %w", err)
 				}
-				fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("Changes committed successfully."))
+				_, _ = fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("Changes committed successfully."))
 				commitOccurred = true
 			} else {
 				// This can happen if `git add .` staged nothing (e.g. only .gitignore changes)
 				// or if the user exited `git add -p` without staging anything.
-				fmt.Fprintln(r.stdout, ui.Colors.InfoStyle.Render("No changes were staged, skipping commit."))
+				_, _ = fmt.Fprintln(r.stdout, ui.Colors.InfoStyle.Render("No changes were staged, skipping commit."))
 			}
 		}
 	}
@@ -249,7 +249,7 @@ func (r *createCmdRunner) run() error {
 		// User started with changes, went through staging, but nothing ended up staged/committed
 		finalMessage += " Uncommitted changes remain."
 	}
-	fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render(finalMessage))
+	_, _ = fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render(finalMessage))
 
 	return nil
 }

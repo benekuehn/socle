@@ -132,7 +132,7 @@ func (r *submitCmdRunner) prepareSubmit(ctx context.Context) ([]string, map[stri
 	r.logger.Debug("Full stack identified for processing", "fullStack", fullStack)
 
 	if len(fullStack) <= 1 {
-		fmt.Fprintln(r.stdout, "Current branch is the base or directly on base. Nothing to submit.")
+		_, _ = fmt.Fprintln(r.stdout, "Current branch is the base or directly on base. Nothing to submit.")
 		return nil, nil, errTrivialStack
 	}
 
@@ -143,7 +143,7 @@ func (r *submitCmdRunner) prepareSubmit(ctx context.Context) ([]string, map[stri
 // It populates r.prInfoMap and r.submitErrors (for non-fatal internal errors).
 // Returns a fatal error if a push fails, submit action fails critically, or user cancels.
 func (r *submitCmdRunner) processStack(ctx context.Context, cmd *cobra.Command, fullStack []string, allParents map[string]string) error {
-	fmt.Fprintln(r.stdout, "Processing stack...")
+	_, _ = fmt.Fprintln(r.stdout, "Processing stack...")
 	for i := 1; i < len(fullStack); i++ {
 		branch := fullStack[i]
 		parent, ok := allParents[branch]
@@ -156,13 +156,13 @@ func (r *submitCmdRunner) processStack(ctx context.Context, cmd *cobra.Command, 
 			continue                                      // Skip this branch
 		}
 
-		fmt.Fprintf(r.stdout, "\nProcessing branch: %s (parent: %s)\n", branch, parent)
+		_, _ = fmt.Fprintf(r.stdout, "\nProcessing branch: %s (parent: %s)\n", branch, parent)
 
 		prInfoResult, err := r.submitBranch(ctx, cmd, branch, parent)
 		if err != nil {
 			// submitBranch returns fatal errors (push fail, action fail) or ErrSubmitCancelled
 			if errors.Is(err, gh.ErrSubmitCancelled) {
-				fmt.Fprintln(r.stdout, ui.Colors.WarningStyle.Render("Submit operation cancelled."))
+				_, _ = fmt.Fprintln(r.stdout, ui.Colors.WarningStyle.Render("Submit operation cancelled."))
 				return err // Return cancellation error to halt processing
 			}
 			// Otherwise, it's a fatal error from push or action
@@ -186,11 +186,11 @@ func (r *submitCmdRunner) updateStackComments(ctx context.Context, fullStack []s
 	stackCommentMarker := "<!-- socle-stack-overview -->"
 
 	if len(r.prInfoMap) == 0 {
-		fmt.Fprintln(r.stdout, "\nNo pull requests were found or created/updated. Skipping comment updates.")
+		_, _ = fmt.Fprintln(r.stdout, "\nNo pull requests were found or created/updated. Skipping comment updates.")
 		return
 	}
 
-	fmt.Fprintln(r.stdout, "\nUpdating PR comments with stack overview...")
+	_, _ = fmt.Fprintln(r.stdout, "\nUpdating PR comments with stack overview...")
 	for i := 1; i < len(fullStack); i++ { // Iterate through stack branches again
 		branch := fullStack[i]
 		prInfo, ok := r.prInfoMap[branch] // Check map for this specific branch
@@ -205,22 +205,22 @@ func (r *submitCmdRunner) updateStackComments(ctx context.Context, fullStack []s
 		if err != nil {
 			// TODO: Differentiate critical errors vs warnings?
 			wrappedErr := fmt.Errorf("error processing stack comment for PR #%d (branch '%s'): %w", prInfo.Number, branch, err)
-			fmt.Fprintln(r.stderr, ui.Colors.WarningStyle.Render("  "+wrappedErr.Error())) // Print immediate feedback
+			_, _ = fmt.Fprintln(r.stderr, ui.Colors.WarningStyle.Render("  "+wrappedErr.Error())) // Print immediate feedback
 			r.submitErrors = append(r.submitErrors, wrappedErr)
 			continue // Continue processing comments for other PRs
 		} else {
-			fmt.Fprintf(r.stdout, "  Stack comment processed for PR #%d.\n", prInfo.Number)
+			_, _ = fmt.Fprintf(r.stdout, "  Stack comment processed for PR #%d.\n", prInfo.Number)
 		}
 	}
 }
 
 // summarizeResults prints the final status and any collected errors.
 func (r *submitCmdRunner) summarizeResults() {
-	fmt.Fprintln(r.stdout, "\nSubmit process finished.")
+	_, _ = fmt.Fprintln(r.stdout, "\nSubmit process finished.")
 	if len(r.submitErrors) > 0 {
-		fmt.Fprintln(r.stderr, ui.Colors.WarningStyle.Render("\nEncountered warnings/errors during submit:"))
+		_, _ = fmt.Fprintln(r.stderr, ui.Colors.WarningStyle.Render("\nEncountered warnings/errors during submit:"))
 		for _, submitErr := range r.submitErrors {
-			fmt.Fprintln(r.stderr, " - "+submitErr.Error())
+			_, _ = fmt.Fprintln(r.stderr, " - "+submitErr.Error())
 		}
 	}
 }
@@ -249,9 +249,9 @@ func (r *submitCmdRunner) submitBranch( // Make it a method of submitCmdRunner
 			// Treat push failure as fatal
 			return nil, fmt.Errorf("failed to push branch '%s': %w", branch, err)
 		}
-		fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("  Branch pushed successfully."))
+		_, _ = fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("  Branch pushed successfully."))
 	} else {
-		fmt.Fprintln(r.stdout, "  Skipping push (--no-push).")
+		_, _ = fmt.Fprintln(r.stdout, "  Skipping push (--no-push).")
 	}
 
 	// 2. Call the SubmitBranch action to handle PR logic

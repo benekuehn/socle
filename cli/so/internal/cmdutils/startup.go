@@ -35,11 +35,11 @@ func HandleStartupError(err error, currentBranchAttempt string, outW io.Writer, 
 	isOnBase := knownBases[cb] && err == nil
 
 	if isOnBase {
-		fmt.Fprintf(outW, "Currently on the base branch '%s'.\n", cb)
+		_, _ = fmt.Fprintf(outW, "Currently on the base branch '%s'.\\n", cb)
 		return true, nil // Handled successfully
 	} else if isUntrackedError {
-		fmt.Fprintf(outW, "Branch '%s' is not currently tracked by socle.\n", cb)
-		fmt.Fprintln(outW, "Use 'so track' to associate it with a parent branch and start a stack.")
+		_, _ = fmt.Fprintf(outW, "Branch '%s' is not currently tracked by socle.\\n", cb)
+		_, _ = fmt.Fprintln(outW, "Use 'so track' to associate it with a parent branch and start a stack.")
 		return true, nil // Handled successfully
 	}
 

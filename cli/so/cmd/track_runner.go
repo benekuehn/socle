@@ -41,9 +41,9 @@ func (r *trackCmdRunner) run() error {
 	if errGetParent == nil && existingParent != "" {
 		baseConfigKey := fmt.Sprintf("branch.%s.socle-base", currentBranch)
 		existingBase, _ := git.GetGitConfig(baseConfigKey)
-		fmt.Fprintf(r.stdout, "Branch '%s' is already tracked.\n", currentBranch)
-		fmt.Fprintf(r.stdout, "  Parent: %s\n", existingParent)
-		fmt.Fprintf(r.stdout, "  Base:   %s\n", existingBase)
+		_, _ = fmt.Fprintf(r.stdout, "Branch '%s' is already tracked.\n", currentBranch)
+		_, _ = fmt.Fprintf(r.stdout, "  Parent: %s\n", existingParent)
+		_, _ = fmt.Fprintf(r.stdout, "  Base:   %s\n", existingBase)
 		return nil
 	} else if errGetParent != nil && !errors.Is(errGetParent, git.ErrConfigNotFound) {
 		return fmt.Errorf("failed to check tracking status for branch '%s': %w", currentBranch, errGetParent) // Use actual error
@@ -111,9 +111,9 @@ func (r *trackCmdRunner) run() error {
 				selectedBase = r.testAssumeBase
 			} else {
 				// Use runner's stdout/stderr
-				fmt.Fprintln(r.stdout, ui.Colors.WarningStyle.Render(fmt.Sprintf(
+				_, _ = fmt.Fprintln(r.stdout, ui.Colors.WarningStyle.Render(fmt.Sprintf(
 					"Warning: Parent branch '%s' is not tracked. Assuming stack base is '%s'.", selectedParent, defaultBaseBranch)))
-				fmt.Fprintln(r.stdout, ui.Colors.WarningStyle.Render("Consider tracking the parent branch first for more accurate stack definitions."))
+				_, _ = fmt.Fprintln(r.stdout, ui.Colors.WarningStyle.Render("Consider tracking the parent branch first for more accurate stack definitions."))
 				selectedBase = defaultBaseBranch
 			}
 		} else {
@@ -126,7 +126,7 @@ func (r *trackCmdRunner) run() error {
 	}
 
 	// 6. Store metadata in git config
-	fmt.Fprintf(r.stdout, "Tracking branch '%s' with parent '%s' and base '%s'.\n", currentBranch, selectedParent, selectedBase)
+	_, _ = fmt.Fprintf(r.stdout, "Tracking branch '%s' with parent '%s' and base '%s'.\n", currentBranch, selectedParent, selectedBase)
 
 	err = git.SetGitConfig(parentConfigKey, selectedParent)
 	if err != nil {
@@ -140,6 +140,6 @@ func (r *trackCmdRunner) run() error {
 		return fmt.Errorf("failed to set socle-base config: %w", err)
 	}
 
-	fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("Branch tracking information saved successfully."))
+	_, _ = fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("Branch tracking information saved successfully."))
 	return nil
 }

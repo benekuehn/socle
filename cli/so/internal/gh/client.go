@@ -30,6 +30,7 @@ type ClientInterface interface {
 	CreateComment(issueNumber int, body string) (*github.IssueComment, error)
 	UpdateComment(commentID int64, body string) (*github.IssueComment, error)
 	FindCommentWithMarker(issueNumber int, marker string) (commentID int64, err error)
+	GetIssueComment(commentID int64) (*github.IssueComment, error)
 }
 
 var _ ClientInterface = (*Client)(nil)
@@ -159,6 +160,18 @@ func (c *Client) UpdateComment(commentID int64, body string) (*github.IssueComme
 		return nil, fmt.Errorf("failed to update comment ID %d: %w", commentID, err)
 	}
 	return updatedComment, nil
+}
+
+// GetIssueComment retrieves a specific issue/PR comment by its ID.
+func (c *Client) GetIssueComment(commentID int64) (*github.IssueComment, error) {
+	comment, _, err := c.gh.Issues.GetComment(c.Ctx, c.Owner, c.Repo, commentID)
+	if err != nil {
+		if ghErr, ok := err.(*github.ErrorResponse); ok && ghErr.Response.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("comment ID %d not found", commentID)
+		}
+		return nil, fmt.Errorf("failed to get comment ID %d: %w", commentID, err)
+	}
+	return comment, nil
 }
 
 func (c *Client) FindCommentWithMarker(issueNumber int, marker string) (commentID int64, err error) {
