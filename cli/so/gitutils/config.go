@@ -3,6 +3,7 @@ package gitutils
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -160,4 +161,104 @@ func FindAllDescendants(startNode string, childMap map[string][]string) []string
 	// but it contains all descendants. Sorting might be needed depending on use case.
 	// For submit, the order we process doesn't strictly matter as much as having the full list.
 	return descendants
+}
+
+// --- Socle Specific Config Helpers ---
+
+// GetStoredPRNumber reads the locally stored PR number for a branch.
+// Returns 0 if not found or parse error occurs.
+func GetStoredPRNumber(branch string) (int, error) {
+	prNumberKey := fmt.Sprintf("branch.%s.socle-pr-number", branch)
+	prNumberStr, err := GetGitConfig(prNumberKey) // Use gitutils.GetGitConfig
+	if err != nil {
+		// Distinguish "not found" from other errors
+		if strings.Contains(err.Error(), "not found") {
+			return 0, nil // Not found is not an error, just means no stored number
+		}
+		return 0, err // Actual error reading config
+	}
+	if prNumberStr == "" {
+		return 0, nil // Empty value means no stored number
+	}
+
+	prNumber := 0
+	_, errScan := fmt.Sscan(prNumberStr, &prNumber)
+	if errScan != nil {
+		// Treat parse error as if no number was stored, but log it
+		slog.Warn("Could not parse stored PR number", "value", prNumberStr, "branch", branch, "error", errScan)
+		return 0, nil // Return 0, not the error itself
+	}
+	return prNumber, nil
+}
+
+// SetStoredPRNumber writes the PR number for a branch to local git config.
+func SetStoredPRNumber(branch string, prNumber int) error {
+	prNumberKey := fmt.Sprintf("branch.%s.socle-pr-number", branch)
+	prNumberStr := fmt.Sprintf("%d", prNumber)
+	slog.Debug("Storing PR number in git config", "key", prNumberKey, "value", prNumberStr)
+	err := SetGitConfig(prNumberKey, prNumberStr) // Use gitutils.SetGitConfig
+	if err != nil {
+		slog.Error("Failed to store PR number in git config", "branch", branch, "prNumber", prNumber, "error", err)
+		// Return the error so caller can potentially warn
+	}
+	return err
+}
+
+// UnsetStoredPRNumber removes the stored PR number for a branch from local git config.
+func UnsetStoredPRNumber(branch string) error {
+	prNumberKey := fmt.Sprintf("branch.%s.socle-pr-number", branch)
+	slog.Debug("Unsetting PR number in git config", "key", prNumberKey)
+	err := UnsetGitConfig(prNumberKey) // Use gitutils.UnsetGitConfig
+	if err != nil {
+		// Log even if unset fails, might not be critical path but good to know
+		slog.Error("Failed to unset PR number in git config", "branch", branch, "error", err)
+	}
+	// Return the error, caller can decide if it's critical.
+	return err
+}
+
+// GetStoredCommentID reads the locally stored stack comment ID for a branch.
+// Returns 0 if not found or parse error occurs.
+func GetStoredCommentID(branch string) (int64, error) {
+	key := fmt.Sprintf("branch.%s.socle-comment-id", branch)
+	val, err := GetGitConfig(key) // Use gitutils.GetGitConfig
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			return 0, nil // Not found
+		}
+		return 0, err // Read error
+	}
+	if val == "" {
+		return 0, nil // Empty
+	}
+	var id int64
+	_, errScan := fmt.Sscan(val, &id)
+	if errScan != nil {
+		slog.Warn("Could not parse stored comment ID", "value", val, "branch", branch, "error", errScan)
+		return 0, nil // Treat parse error as not found
+	}
+	return id, nil
+}
+
+// SetStoredCommentID writes the stack comment ID for a branch to local git config.
+func SetStoredCommentID(branch string, commentID int64) error {
+	key := fmt.Sprintf("branch.%s.socle-comment-id", branch)
+	val := fmt.Sprintf("%d", commentID)
+	slog.Debug("Storing Comment ID in git config", "key", key, "value", val)
+	err := SetGitConfig(key, val) // Use gitutils.SetGitConfig
+	if err != nil {
+		slog.Error("Failed to store Comment ID in git config", "branch", branch, "commentID", commentID, "error", err)
+	}
+	return err // Return error for caller to handle
+}
+
+// UnsetStoredCommentID removes the stored stack comment ID for a branch from local git config.
+func UnsetStoredCommentID(branch string) error {
+	key := fmt.Sprintf("branch.%s.socle-comment-id", branch)
+	slog.Debug("Unsetting Comment ID in git config", "key", key)
+	err := UnsetGitConfig(key) // Use gitutils.UnsetGitConfig
+	if err != nil {
+		slog.Error("Failed to unset Comment ID in git config", "branch", branch, "error", err)
+	}
+	return err // Return error for caller to handle
 }

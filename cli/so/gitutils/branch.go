@@ -3,6 +3,7 @@ package gitutils
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os/exec"
 	"strings"
 )
@@ -93,4 +94,51 @@ func BranchDelete(name string) error {
 		return fmt.Errorf("failed to delete branch '%s': %w", name, err)
 	}
 	return nil
+}
+
+// GetFullStackForSubmit determines the complete stack of branches to be processed,
+// starting from the base of the current stack and including all its descendants.
+// It takes the current stack (from base to the currently checked-out branch) as input.
+// It returns the full stack (including the base) and the map of all parent relationships.
+func GetFullStackForSubmit(currentStack []string) ([]string, map[string]string, error) {
+	slog.Debug("Determining full stack...")
+	// Need all parent relationships to build the descendant tree accurately
+	allParents, err := GetAllSocleParents()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read all tracking relationships: %w", err)
+	}
+
+	// Handle the edge case where currentStack might be empty or just the base
+	if len(currentStack) <= 1 {
+		slog.Debug("Current stack is empty or only contains the base.", "currentStack", currentStack)
+		// Return the current stack itself and the parents map, as there are no descendants to find.
+		// The caller (e.g., submit) should handle the case of len <= 1 appropriately.
+		return currentStack, allParents, nil
+	}
+
+	childMap := BuildChildMap(allParents)
+	// Find all descendants of the *last* branch in the current stack
+	// This assumes the current checkout is somewhere within the stack of interest
+	tipOfCurrentStack := currentStack[len(currentStack)-1]
+	descendants := FindAllDescendants(tipOfCurrentStack, childMap)
+
+	// Combine the current stack (base -> current -> tip) with any further descendants
+	fullStack := currentStack
+	processedDescendants := make(map[string]bool) // Avoid adding duplicates if currentStack already had some
+	for _, b := range currentStack {
+		processedDescendants[b] = true
+	}
+
+	// Simple append - order might not be perfect topological, but contains all nodes
+	// TODO: Improve ordering if needed later (e.g., topological sort)
+	for _, desc := range descendants {
+		if !processedDescendants[desc] {
+			fullStack = append(fullStack, desc)
+			processedDescendants[desc] = true
+		}
+	}
+	slog.Debug("Full stack identified for processing:", "fullStack", fullStack)
+
+	// Return the combined stack and the parent map needed by the caller
+	return fullStack, allParents, nil
 }

@@ -59,9 +59,9 @@ func ResetTestFlags() {
 	testBranchName = ""
 	testStageChoice = ""
 	testAddPResultEmpty = false
-	testSubmitTitle = ""
-	testSubmitBody = ""
-	testSubmitEditConfirm = false
+	// testSubmitTitle = "" // REMOVED - Handled via args
+	// testSubmitBody = "" // REMOVED - Handled via args
+	// testSubmitEditConfirm = false // REMOVED - Handled via args
 	// Reset other test flags from other commands here...
 }
 
