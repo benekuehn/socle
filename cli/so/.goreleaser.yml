@@ -54,10 +54,10 @@ archives:
     # Archive name template
     # Reference: https://goreleaser.com/customization/archive/
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    # Add useful files like README, LICENSE (paths relative to cli/so)
+    # Add useful files like README, LICENSE (paths relative to project root)
     files:
-      - ../../LICENSE      # <-- Path to root LICENSE
-      - README.md        # <-- Path to cli/so/README.md
+      - LICENSE      # <-- Path relative to project root
+      - README.md    # <-- Path relative to project root
 
 # Generate checksums file
 checksum:
