@@ -92,7 +92,7 @@ within a stack. This allows 'socle show' to display the specific stack you are o
 			prompt := &survey.Select{Message: fmt.Sprintf("Select the parent branch for '%s':", currentBranch), Options: potentialParents}
 			err := survey.AskOne(prompt, &selectedParent, survey.WithStdio(os.Stdin, os.Stderr, os.Stderr))
 			if err != nil {
-				return handleSurveyInterrupt(err, "Track command cancelled.")
+				return ui.HandleSurveyInterrupt(err, "Track command cancelled.")
 			}
 			slog.Debug("Parent selected via prompt", "selectedParent", selectedParent)
 		}
