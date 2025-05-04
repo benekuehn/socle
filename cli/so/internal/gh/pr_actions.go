@@ -1,4 +1,4 @@
-package actions
+package gh
 
 import (
 	"context"
@@ -11,11 +11,11 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
-	"github.com/benekuehn/socle/cli/so/gitutils"
-	"github.com/benekuehn/socle/cli/so/internal/gh"
+
+	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/ui"
 	"github.com/google/go-github/v71/github"
-	"github.com/spf13/cobra" // Still needed for cmd access for prompts
+	"github.com/spf13/cobra"
 )
 
 // SubmitBranchOptions holds configuration for the SubmitBranch action.
@@ -24,24 +24,22 @@ type SubmitBranchOptions struct {
 	TestSubmitTitle       string
 	TestSubmitBody        string
 	TestSubmitEditConfirm bool
-	// Add other relevant flags/configs if needed, e.g., ForcePush
 }
 
 // ErrSubmitCancelled indicates the user cancelled the operation during a prompt.
+// Moved ErrExitSilently to client.go
 var ErrSubmitCancelled = errors.New("submit cancelled by user")
 
 // SubmitBranch encapsulates the core logic for ensuring a PR exists and is up-to-date for a branch.
 // It checks local config, interacts with the GitHub API, checks diffs, prompts user (currently via cmd),
 // updates/creates PRs, and updates local config.
 // Returns the final PR state (or nil if skipped) and an error (including ErrSubmitCancelled).
-func SubmitBranch(ctx context.Context, ghClient gh.ClientInterface, cmd *cobra.Command, branch, parent string, opts SubmitBranchOptions) (*github.PullRequest, error) {
+func SubmitBranch(ctx context.Context, ghClient ClientInterface, cmd *cobra.Command, branch, parent string, opts SubmitBranchOptions) (*github.PullRequest, error) {
 	slog.Debug("Executing SubmitBranch action", "branch", branch, "parent", parent)
 
 	// 1. Check for existing PR via stored number
-	prNumber, configReadErr := gitutils.GetStoredPRNumber(branch)
+	prNumber, configReadErr := git.GetStoredPRNumber(branch)
 	if configReadErr != nil {
-		// Log actual config read errors, but don't stop the process
-		// TODO: Return warnings properly instead of printing here?
 		fmt.Fprintf(cmd.ErrOrStderr(), "%s\n", ui.Colors.WarningStyle.Render(fmt.Sprintf("  Warning: Failed to read stored PR number config for branch '%s': %v. Will attempt to create/find PR.", branch, configReadErr)))
 		prNumber = 0 // Ensure we proceed to create/find logic
 	}
@@ -50,27 +48,22 @@ func SubmitBranch(ctx context.Context, ghClient gh.ClientInterface, cmd *cobra.C
 
 	// 2. Try to Update Existing PR if number was found
 	if prNumber > 0 {
-		updatedPR, errUpdate := updateExistingPRAction(ctx, ghClient, cmd, prNumber, branch, parent)
+		// Call renamed helper function
+		updatedPR, errUpdate := updateExistingPR(ghClient, prNumber, parent)
 		if errUpdate != nil {
-			// Fatal error during update attempt
 			return nil, fmt.Errorf("failed trying to update PR #%d: %w", prNumber, errUpdate)
 		}
 
 		if updatedPR == nil {
-			// PR number was stored, but PR didn't exist on GitHub (404). Clear stored number.
 			fmt.Fprintf(cmd.ErrOrStderr(), "%s\n", ui.Colors.WarningStyle.Render(fmt.Sprintf("  Warning: Stored PR #%d not found on GitHub. Clearing stored number.", prNumber)))
-			if unsetErr := gitutils.UnsetStoredPRNumber(branch); unsetErr != nil {
-				// TODO: Return warnings properly
+			if unsetErr := git.UnsetStoredPRNumber(branch); unsetErr != nil {
 				fmt.Fprintf(cmd.ErrOrStderr(), "%s", ui.Colors.FailureStyle.Render(fmt.Sprintf("  CRITICAL WARNING: Failed to clear stale PR number %d locally for branch '%s': %v\n", prNumber, branch, unsetErr)))
 			}
 			prNumber = 0 // Reset prNumber so we attempt creation below
 		} else {
-			// PR exists and was potentially updated.
 			finalPR = updatedPR
 			fmt.Printf("  Verified/Updated PR #%d: %s\n", finalPR.GetNumber(), finalPR.GetHTMLURL())
-			// Ensure number is stored correctly
-			if errSet := gitutils.SetStoredPRNumber(branch, finalPR.GetNumber()); errSet != nil {
-				// TODO: Return warnings properly
+			if errSet := git.SetStoredPRNumber(branch, finalPR.GetNumber()); errSet != nil {
 				fmt.Fprintf(cmd.ErrOrStderr(), "%s", ui.Colors.FailureStyle.Render(fmt.Sprintf("  CRITICAL WARNING: Failed to store PR number %d locally after update for branch '%s': %v\n", finalPR.GetNumber(), branch, errSet)))
 			}
 		}
@@ -79,22 +72,18 @@ func SubmitBranch(ctx context.Context, ghClient gh.ClientInterface, cmd *cobra.C
 	// 3. If we don't have a PR yet, try creating one.
 	if finalPR == nil {
 		slog.Debug("No valid existing PR found, attempting creation...", "branch", branch)
-		createdPR, errCreate := createNewPRAction(ctx, ghClient, cmd, branch, parent, opts)
+		// Call renamed helper function
+		createdPR, errCreate := createNewPR(ghClient, cmd, branch, parent, opts)
 		if errCreate != nil {
-			// Check for cancellation or other fatal error from create helper
 			return nil, errCreate
 		}
 
 		if createdPR == nil {
-			// createNewPRAction returns nil, nil if skipped (e.g., no diff)
-			slog.Debug("PR creation skipped by createNewPRAction.", "branch", branch)
+			slog.Debug("PR creation skipped by createNewPR.", "branch", branch)
 			return nil, nil // Indicate skipped
 		} else {
-			// PR successfully created.
 			finalPR = createdPR
-			// Store the new PR number
-			if errSet := gitutils.SetStoredPRNumber(branch, finalPR.GetNumber()); errSet != nil {
-				// TODO: Return warnings properly
+			if errSet := git.SetStoredPRNumber(branch, finalPR.GetNumber()); errSet != nil {
 				fmt.Fprintf(cmd.ErrOrStderr(), "%s", ui.Colors.FailureStyle.Render(fmt.Sprintf("  CRITICAL WARNING: Failed to store new PR number %d locally for branch '%s': %v\n", finalPR.GetNumber(), branch, errSet)))
 				fmt.Fprint(cmd.ErrOrStderr(), ui.Colors.FailureStyle.Render("  Future updates to this PR via 'socle submit' may fail or create duplicates!\n"))
 			}
@@ -105,12 +94,8 @@ func SubmitBranch(ctx context.Context, ghClient gh.ClientInterface, cmd *cobra.C
 	return finalPR, nil
 }
 
-// --- Helpers internal to the actions package ---
-
-// updateExistingPRAction tries to fetch and potentially update the base of an existing PR.
-// Corresponds to former updateExistingPRHelper in cmd/submit.go
-func updateExistingPRAction(ctx context.Context, ghClient gh.ClientInterface, cmd *cobra.Command, prNumber int, branch, parent string) (*github.PullRequest, error) {
-	// (Logic is identical to the former updateExistingPRHelper)
+// updateExistingPR tries to fetch and potentially update the base of an existing PR.
+func updateExistingPR(ghClient ClientInterface, prNumber int, parent string) (*github.PullRequest, error) {
 	fmt.Printf("  Verifying existing PR #%d and checking for base update...\n", prNumber)
 	existingPR, err := ghClient.GetPullRequest(prNumber)
 	if err != nil {
@@ -134,13 +119,10 @@ func updateExistingPRAction(ctx context.Context, ghClient gh.ClientInterface, cm
 	}
 }
 
-// createNewPRAction handles the creation of a new PR after checking for diffs.
-// Corresponds to former createNewPRHelper in cmd/submit.go
-func createNewPRAction(ctx context.Context, ghClient gh.ClientInterface, cmd *cobra.Command, branch, parent string, opts SubmitBranchOptions) (*github.PullRequest, error) {
-	// (Logic is identical to the former createNewPRHelper)
-	// --- Check for Diff First ---
+// createNewPR handles the creation of a new PR after checking for diffs.
+func createNewPR(ghClient ClientInterface, cmd *cobra.Command, branch, parent string, opts SubmitBranchOptions) (*github.PullRequest, error) {
 	fmt.Printf("  Checking for differences between '%s' and '%s'...\n", parent, branch)
-	hasDiff, errDiff := gitutils.HasDiff(parent, branch)
+	hasDiff, errDiff := git.HasDiff(parent, branch)
 	if errDiff != nil {
 		fmt.Fprintf(cmd.ErrOrStderr(), "%s\n", ui.Colors.FailureStyle.Render(fmt.Sprintf("  ERROR: Failed to check for differences: %v", errDiff)))
 		fmt.Fprintf(cmd.ErrOrStderr(), "%s\n", ui.Colors.WarningStyle.Render(fmt.Sprintf("  Skipping PR processing for branch '%s' due to diff check error.", branch)))
@@ -153,13 +135,12 @@ func createNewPRAction(ctx context.Context, ghClient gh.ClientInterface, cmd *co
 	}
 	slog.Debug("Differences found. Proceeding with PR creation details...")
 
-	// --- Get Title/Body from User ---
-	title, body, errPrompt := promptForPRDetailsAction(cmd, branch, parent, opts)
+	// Call renamed helper function
+	title, body, errPrompt := promptForPRDetails(cmd, branch, parent, opts)
 	if errPrompt != nil {
 		return nil, errPrompt // Includes cancellation error
 	}
 
-	// --- Create PR via API ---
 	draftStatus := map[bool]string{true: "Draft", false: "Ready"}[opts.IsDraft]
 	fmt.Printf("  Submitting %s PR for '%s' -> '%s'...\n", draftStatus, branch, parent)
 	slog.Debug("Creating PR via API", "branch", branch, "parent", parent, "title", title, "isDraft", opts.IsDraft)
@@ -168,21 +149,18 @@ func createNewPRAction(ctx context.Context, ghClient gh.ClientInterface, cmd *co
 		return nil, fmt.Errorf("github API error creating pull request: %w", errCreate)
 	}
 
-	// --- Success ---
 	fmt.Println(ui.Colors.SuccessStyle.Render(
 		fmt.Sprintf("  Successfully created %s PR #%d: %s", draftStatus, newPR.GetNumber(), newPR.GetHTMLURL()),
 	))
 	return newPR, nil
 }
 
-// promptForPRDetailsAction prompts the user for PR title and body using defaults.
-// Corresponds to former promptForPRDetails in cmd/submit.go
-func promptForPRDetailsAction(cmd *cobra.Command, branch, parent string, opts SubmitBranchOptions) (title, body string, err error) {
-	// (Logic is identical to the former promptForPRDetails)
+// promptForPRDetails prompts the user for PR title and body using defaults.
+func promptForPRDetails(cmd *cobra.Command, branch, parent string, opts SubmitBranchOptions) (title, body string, err error) {
 	var surveyErr error
 	title = ""
 	defaultTitle := ""
-	firstSubject, errSubject := gitutils.GetFirstCommitSubject(parent, branch)
+	firstSubject, errSubject := git.GetFirstCommitSubject(parent, branch)
 	if errSubject != nil {
 		fmt.Fprintf(cmd.ErrOrStderr(), "%s\n", ui.Colors.WarningStyle.Render(fmt.Sprintf("  Warning: Could not determine first commit subject for default title: %v", errSubject)))
 		defaultTitle = strings.ReplaceAll(branch, "-", " ")
@@ -197,9 +175,10 @@ func promptForPRDetailsAction(cmd *cobra.Command, branch, parent string, opts Su
 		title = opts.TestSubmitTitle
 	} else {
 		titlePrompt := &survey.Input{Message: "Pull Request Title:", Default: defaultTitle}
+		// Call renamed helper function
 		surveyErr = survey.AskOne(titlePrompt, &title, survey.WithValidator(survey.Required), survey.WithStdio(os.Stdin, os.Stdout, os.Stderr))
 		if surveyErr != nil {
-			return "", "", handleSurveyInterruptAction(surveyErr, "Submit cancelled during title entry.")
+			return "", "", handleSurveyInterrupt(surveyErr, "Submit cancelled during title entry.")
 		}
 	}
 	body = ""
@@ -207,7 +186,7 @@ func promptForPRDetailsAction(cmd *cobra.Command, branch, parent string, opts Su
 		slog.Debug("Using body from test flag", "testBody", opts.TestSubmitBody)
 		body = opts.TestSubmitBody
 	} else {
-		templateContent, errTpl := gitutils.FindAndReadPRTemplate()
+		templateContent, errTpl := git.FindAndReadPRTemplate()
 		if errTpl != nil {
 			slog.Warn("Failed to read PR template", "error", errTpl)
 			fmt.Fprintln(cmd.ErrOrStderr(), ui.Colors.WarningStyle.Render("  Warning: Could not read PR template: "+errTpl.Error()))
@@ -223,14 +202,14 @@ func promptForPRDetailsAction(cmd *cobra.Command, branch, parent string, opts Su
 			confirmPrompt := &survey.Confirm{Message: "Edit description before submitting?", Default: templateContent == ""}
 			surveyErr = survey.AskOne(confirmPrompt, &editBody, survey.WithStdio(os.Stdin, os.Stdout, os.Stderr))
 			if surveyErr != nil {
-				return "", "", handleSurveyInterruptAction(surveyErr, "Submit cancelled during edit confirmation.")
+				return "", "", handleSurveyInterrupt(surveyErr, "Submit cancelled during edit confirmation.")
 			}
 		}
 		if editBody {
 			editorPrompt := &survey.Editor{Message: "Pull Request Body (Markdown):", FileName: "*.md", Default: templateContent, HideDefault: false}
 			surveyErr = survey.AskOne(editorPrompt, &body, survey.WithStdio(os.Stdin, os.Stdout, os.Stderr))
 			if surveyErr != nil {
-				return "", "", handleSurveyInterruptAction(surveyErr, "Submit cancelled during body editing.")
+				return "", "", handleSurveyInterrupt(surveyErr, "Submit cancelled during body editing.")
 			}
 		} else {
 			body = templateContent
@@ -239,9 +218,8 @@ func promptForPRDetailsAction(cmd *cobra.Command, branch, parent string, opts Su
 	return title, body, nil
 }
 
-// handleSurveyInterruptAction checks for survey's interrupt error.
-// Corresponds to former handleSurveyInterrupt in cmd/submit.go
-func handleSurveyInterruptAction(err error, message string) error {
+// handleSurveyInterrupt checks for survey's interrupt error.
+func handleSurveyInterrupt(err error, message string) error {
 	if err == terminal.InterruptErr {
 		fmt.Println(ui.Colors.WarningStyle.Render(message))
 		return ErrSubmitCancelled // Return specific error type for actions
@@ -249,5 +227,106 @@ func handleSurveyInterruptAction(err error, message string) error {
 	if err == io.EOF {
 		return fmt.Errorf("prompt failed: %w (received io.EOF, potentially non-interactive environment?)", err)
 	}
-	return fmt.Errorf("prompt failed: %w", err) // Return other survey errors
+	return fmt.Errorf("prompt failed: %w", err)
+}
+
+// --- Commenting Logic ---
+
+// EnsureStackComment handles adding or updating the stack overview comment on a given PR.
+func EnsureStackComment(ctx context.Context, ghClient ClientInterface, branch string, prNumber int, commentBody string, marker string) error {
+	slog.Debug("Executing EnsureStackComment action", "branch", branch, "prNumber", prNumber)
+	var accumulatedError error // Collect non-fatal errors
+
+	// 1. Get existing comment ID stored locally
+	storedCommentID, configReadErr := git.GetStoredCommentID(branch)
+	if configReadErr != nil {
+		warnMsg := fmt.Sprintf("failed to read stored comment ID config for branch '%s': %v", branch, configReadErr)
+		slog.Warn(warnMsg)
+		accumulatedError = errors.New(warnMsg) // Use errors.New for initial assignment
+		storedCommentID = 0
+	}
+
+	// 2. Find comment on GitHub using marker
+	foundCommentID, findErr := ghClient.FindCommentWithMarker(prNumber, marker)
+	if findErr != nil {
+		// API error occurred trying to find the comment - treat as fatal for this action
+		return fmt.Errorf("failed to search for existing stack comment on PR #%d: %w", prNumber, findErr)
+	}
+
+	// 3. Update or Create Comment
+	if foundCommentID > 0 {
+		// --- Comment with marker found ---
+		slog.Debug("Found existing stack comment via marker", "foundCommentID", foundCommentID, "prNumber", prNumber)
+
+		// Reconcile stored ID with found ID
+		if storedCommentID != 0 && storedCommentID != foundCommentID {
+			warnMsg := fmt.Sprintf("stored comment ID (%d) differs from found comment ID (%d) for PR #%d. Updating stored ID", storedCommentID, foundCommentID, prNumber)
+			slog.Warn(warnMsg)
+			if accumulatedError == nil {
+				accumulatedError = fmt.Errorf("%w", errors.New(warnMsg))
+			} else {
+				accumulatedError = fmt.Errorf("%w; %s", accumulatedError, warnMsg) // Append warning
+			}
+			if err := git.SetStoredCommentID(branch, foundCommentID); err != nil {
+				critErrMsg := fmt.Sprintf("failed to update stored comment ID for branch '%s': %v", branch, err)
+				slog.Error(critErrMsg)
+				return fmt.Errorf("%s", critErrMsg)
+			}
+			storedCommentID = foundCommentID
+		} else if storedCommentID == 0 && foundCommentID != 0 {
+			slog.Debug("Storing newly found comment ID", "foundCommentID", foundCommentID, "branch", branch)
+			if err := git.SetStoredCommentID(branch, foundCommentID); err != nil {
+				critErrMsg := fmt.Sprintf("failed to store found comment ID %d for branch '%s': %v", foundCommentID, branch, err)
+				slog.Error(critErrMsg)
+				return fmt.Errorf("%s", critErrMsg)
+			}
+			storedCommentID = foundCommentID
+		}
+
+		// Update the found comment
+		slog.Debug("Updating stack comment", "commentID", foundCommentID, "prNumber", prNumber)
+		_, err := ghClient.UpdateComment(foundCommentID, commentBody)
+		if err != nil {
+			return fmt.Errorf("failed to update stack comment %d on PR #%d: %w", foundCommentID, prNumber, err)
+		}
+		slog.Debug("Comment updated successfully.")
+
+	} else {
+		// --- Comment with marker NOT found ---
+		slog.Debug("No existing stack comment found via marker.", "prNumber", prNumber)
+
+		if storedCommentID != 0 {
+			warnMsg := fmt.Sprintf("stored comment ID %d found, but no matching comment exists on PR #%d. Clearing stored ID", storedCommentID, prNumber)
+			slog.Warn(warnMsg)
+			if accumulatedError == nil {
+				accumulatedError = fmt.Errorf("%w", errors.New(warnMsg))
+			} else {
+				accumulatedError = fmt.Errorf("%w; %s", accumulatedError, warnMsg)
+			}
+			if err := git.UnsetStoredCommentID(branch); err != nil {
+				critErrMsg := fmt.Sprintf("failed to clear stale comment ID for branch '%s': %v", branch, err)
+				slog.Error(critErrMsg)
+				accumulatedError = fmt.Errorf("%w; %s", accumulatedError, critErrMsg)
+			}
+		}
+
+		// Create new comment
+		slog.Debug("Adding stack comment", "prNumber", prNumber)
+		newComment, err := ghClient.CreateComment(prNumber, commentBody)
+		if err != nil {
+			return fmt.Errorf("failed to add stack comment to PR #%d: %w", prNumber, err)
+		}
+		slog.Debug("Comment added successfully.")
+
+		// Store the new comment ID
+		newCommentID := newComment.GetID()
+		if err := git.SetStoredCommentID(branch, newCommentID); err != nil {
+			critErrMsg := fmt.Sprintf("failed to store new comment ID %d for branch '%s': %v", newCommentID, branch, err)
+			slog.Error(critErrMsg)
+			return fmt.Errorf("%s", critErrMsg)
+		}
+		slog.Debug("Stored new comment ID", "commentID", newCommentID)
+	}
+
+	return accumulatedError // Return collected non-fatal errors/warnings
 }

@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/benekuehn/socle/cli/so/gitutils"
+	"github.com/benekuehn/socle/cli/so/internal/git"
 )
 
 // HandleStartupError manages errors from GetCurrentStackInfo for better command startup UX.
@@ -17,14 +17,14 @@ import (
 func HandleStartupError(err error, currentBranchAttempt string, outW io.Writer, errW io.Writer) (handled bool, returnErr error) {
 	cb := currentBranchAttempt
 	if cb == "" {
-		cb, _ = gitutils.GetCurrentBranch() // Best effort if initial attempt failed
+		cb, _ = git.GetCurrentBranch() // Best effort if initial attempt failed
 	}
 
 	// Check for untracked error conditions explicitly
 	isUntrackedError := false
 	if err != nil {
 		// Check specific error type or characteristic strings
-		if errors.Is(err, gitutils.ErrConfigNotFound) || strings.Contains(err.Error(), "not tracked by socle") {
+		if errors.Is(err, git.ErrConfigNotFound) || strings.Contains(err.Error(), "not tracked by socle") {
 			isUntrackedError = true
 		}
 	}

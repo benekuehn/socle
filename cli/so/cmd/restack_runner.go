@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/benekuehn/socle/cli/so/gitutils"
+	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -28,14 +28,14 @@ type restackCmdRunner struct {
 
 func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 	// --- Pre-Checks ---
-	if gitutils.IsRebaseInProgress() {
+	if git.IsRebaseInProgress() {
 		fmt.Fprintln(r.stderr, ui.Colors.InfoStyle.Render("Git rebase already in progress."))
 		fmt.Fprintln(r.stderr, ui.Colors.InfoStyle.Render("Resolve conflicts and run 'git rebase --continue' or cancel with 'git rebase --abort'."))
 		fmt.Fprintln(r.stderr, ui.Colors.InfoStyle.Render("Once the Git rebase is finished, run 'so restack' again if needed."))
 		cmd.SilenceUsage = true // Prevent usage printing on clean exit
 		return nil              // Exit cleanly, user needs to act in Git
 	}
-	hasChanges, err := gitutils.HasUncommittedChanges()
+	hasChanges, err := git.HasUncommittedChanges()
 	if err != nil {
 		return fmt.Errorf("failed to check working tree status: %w", err)
 	}
@@ -44,11 +44,11 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 	}
 
 	// --- Get Stack Info ---
-	originalBranch, err := gitutils.GetCurrentBranch()
+	originalBranch, err := git.GetCurrentBranch()
 	if err != nil {
 		return fmt.Errorf("cannot get current branch: %w", err)
 	}
-	_, stack, baseBranch, err := gitutils.GetCurrentStackInfo()
+	_, stack, baseBranch, err := git.GetCurrentStackInfo()
 	if err != nil {
 		return err
 	}
@@ -60,11 +60,11 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 	// --- Defer Checkout Back ---
 	defer func() {
 		// Only run if no rebase is currently in progress (i.e., we didn't exit due to conflict)
-		if !gitutils.IsRebaseInProgress() {
-			currentBranchAfter, _ := gitutils.GetCurrentBranch()
+		if !git.IsRebaseInProgress() {
+			currentBranchAfter, _ := git.GetCurrentBranch()
 			if currentBranchAfter != originalBranch {
 				r.logger.Debug("Checking out original branch", "name", originalBranch)
-				errCheckout := gitutils.CheckoutBranch(originalBranch)
+				errCheckout := git.CheckoutBranch(originalBranch)
 				if errCheckout != nil {
 					fmt.Fprintf(r.stderr, ui.Colors.WarningStyle.Render("Warning: Failed to checkout original branch '%s': %v\n"), originalBranch, errCheckout)
 				}
@@ -76,7 +76,7 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 	remoteName := "origin"
 	shouldFetch := !r.noFetch
 	if shouldFetch {
-		_, errRemote := gitutils.GetRemoteURL(remoteName)
+		_, errRemote := git.GetRemoteURL(remoteName)
 		if errRemote != nil {
 			if strings.Contains(errRemote.Error(), "not found") {
 				r.logger.Debug("Remote not found. Skipping fetch.", "remoteName", remoteName)
@@ -89,7 +89,7 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 	if shouldFetch {
 		r.logger.Debug("Fetching latest", "baseBranch", baseBranch, "remoteName", remoteName)
 		// Pass remote name to FetchBranch if it needs it
-		if err := gitutils.FetchBranch(baseBranch, remoteName); err != nil {
+		if err := git.FetchBranch(baseBranch, remoteName); err != nil {
 			return fmt.Errorf("failed to fetch base branch '%s': %w.\nUse --no-fetch to skip", baseBranch, err)
 		}
 		fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("Fetch complete."))
@@ -108,13 +108,13 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 		r.logger.Debug("Processing branch", "index", i, "total", len(stack)-1, "branch", branch, "parent", parent)
 
 		// Get current OIDs
-		parentOID, errPO := gitutils.GetCurrentBranchCommit(parent)
+		parentOID, errPO := git.GetCurrentBranchCommit(parent)
 		if errPO != nil {
 			return fmt.Errorf("cannot get current commit of parent '%s': %w", parent, errPO)
 		}
 
 		// Optimization Check
-		mergeBase, errMB := gitutils.GetMergeBase(parent, branch)
+		mergeBase, errMB := git.GetMergeBase(parent, branch)
 		if errMB != nil {
 			// If merge-base fails, maybe the branches have diverged significantly?
 			// Warn and proceed with rebase attempt.
@@ -127,12 +127,12 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 
 		// Checkout and Rebase
 		r.logger.Debug("Checking out", "branch", branch)
-		if err := gitutils.CheckoutBranch(branch); err != nil {
+		if err := git.CheckoutBranch(branch); err != nil {
 			return fmt.Errorf("failed to checkout branch '%s' for rebase: %w", branch, err)
 		}
 
 		r.logger.Debug("Rebasing onto parent", "branch", branch, "parent", parent, "parentOID", parentOID[:7])
-		err = gitutils.RebaseCurrentBranchOnto(parentOID) // Rebase onto specific parent commit OID
+		err = git.RebaseCurrentBranchOnto(parentOID) // Rebase onto specific parent commit OID
 
 		if err == nil {
 			r.logger.Debug("Rebase step successful.")
@@ -141,28 +141,16 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 		}
 
 		// Handle Rebase Failure
-		if errors.Is(err, gitutils.ErrRebaseConflict) {
+		if errors.Is(err, git.ErrRebaseConflict) {
 			// CONFLICT Case
 			fmt.Fprintln(r.stderr, "")
 			fmt.Fprintln(r.stderr, ui.Colors.WarningStyle.Render("⚠️ Rebase paused due to conflicts."))
-			fmt.Fprintln(r.stderr, "   Resolve conflicts manually:")
-			fmt.Fprintln(r.stderr, "     1. Edit conflicted files (see 'git status').")
-			fmt.Fprintln(r.stderr, "     2. Run 'git add <resolved-files...>'.")
-			fmt.Fprintln(r.stderr, "     3. Run 'git rebase --continue'.")
+			fmt.Fprintln(r.stderr, "Restack paused due to conflicts.")
+			fmt.Fprintf(r.stderr, "Please resolve the conflicts in branch '%s' and then run:\n", branch)
+			fmt.Fprintln(r.stderr, "  1. Run 'git add <resolved-files...>'.")
+			fmt.Fprintln(r.stderr, "  2. Run 'git rebase --continue'.")
 			fmt.Fprintln(r.stderr, "   (To cancel, run 'git rebase --abort')")
 			fmt.Fprintln(r.stderr, "   Once the Git rebase is complete, run 'so restack' again.")
-
-			rerereEnabled, errCheck := gitutils.IsRerereEnabled()
-			if errCheck != nil {
-				// Don't fail the process for this, just warn
-				fmt.Fprintf(r.stderr, ui.Colors.WarningStyle.Render("   Warning: Could not check git rerere config: %v\n"), errCheck)
-			} else if !rerereEnabled {
-				fmt.Fprintln(r.stderr, "") // Extra space before tip
-				fmt.Fprintln(r.stderr, ui.Colors.InfoStyle.Render(
-					"   Tip: Enable 'git rerere' globally ('git config --global rerere.enabled true')"))
-				fmt.Fprintln(r.stderr, ui.Colors.InfoStyle.Render(
-					"        to potentially automate resolving similar conflicts in the future."))
-			}
 
 			cmd.SilenceUsage = true // Prevent usage printing
 			return nil              // Exit cleanly, user needs to use Git
@@ -209,7 +197,7 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 		pushSuccessCount := 0
 		for _, branch := range rebasedBranches {
 			fmt.Fprintf(r.stdout, "Pushing %s... ", branch)
-			err := gitutils.PushBranchWithLease(branch, remoteName) // Use force-with-lease
+			err := git.PushBranchWithLease(branch, remoteName) // Use force-with-lease
 			if err != nil {
 				fmt.Fprintln(r.stdout, ui.Colors.FailureStyle.Render("Failed!"))
 				// Log error but continue trying other branches? Or abort?

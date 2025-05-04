@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/benekuehn/socle/cli/so/gitutils"
+	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,16 +42,16 @@ func TestRestackCommand(t *testing.T) {
 		defer cleanup()
 
 		// Get initial hashes
-		hashA1, _ := gitutils.GetCurrentBranchCommit("feature-a")
-		hashB1, _ := gitutils.GetCurrentBranchCommit("feature-b")
+		hashA1, _ := git.GetCurrentBranchCommit("feature-a")
+		hashB1, _ := git.GetCurrentBranchCommit("feature-b")
 
 		// Action
 		err := runSoCommand(t, "restack", "--no-fetch") // No fetch needed
 
 		// Assertions
 		require.NoError(t, err)
-		hashA2, _ := gitutils.GetCurrentBranchCommit("feature-a")
-		hashB2, _ := gitutils.GetCurrentBranchCommit("feature-b")
+		hashA2, _ := git.GetCurrentBranchCommit("feature-a")
+		hashB2, _ := git.GetCurrentBranchCommit("feature-b")
 		assert.Equal(t, hashA1, hashA2, "feature-a hash should not change")
 		assert.Equal(t, hashB1, hashB2, "feature-b hash should not change")
 		// TODO: Assert output contains skipping messages? Requires capturing output.
@@ -62,16 +62,16 @@ func TestRestackCommand(t *testing.T) {
 		defer cleanup()
 
 		// Get original hashes
-		hashA1, _ := gitutils.GetCurrentBranchCommit("feature-a")
-		hashB1, _ := gitutils.GetCurrentBranchCommit("feature-b")
-		hashMain1, _ := gitutils.GetCurrentBranchCommit("main")
+		hashA1, _ := git.GetCurrentBranchCommit("feature-a")
+		hashB1, _ := git.GetCurrentBranchCommit("feature-b")
+		hashMain1, _ := git.GetCurrentBranchCommit("main")
 
 		// Setup: Add commit to main
 		testutils.RunCommand(t, repoPath, "git", "checkout", "main")
 		writeFile(t, repoPath, "main_change.txt", "change")
 		testutils.RunCommand(t, repoPath, "git", "add", ".")
 		testutils.RunCommand(t, repoPath, "git", "commit", "-m", "feat: commit on main")
-		hashMain2, _ := gitutils.GetCurrentBranchCommit("main")
+		hashMain2, _ := git.GetCurrentBranchCommit("main")
 		require.NotEqual(t, hashMain1, hashMain2) // Verify main moved
 
 		// Go back to tip branch
@@ -82,14 +82,14 @@ func TestRestackCommand(t *testing.T) {
 
 		// Assertions
 		require.NoError(t, err)
-		hashA2, _ := gitutils.GetCurrentBranchCommit("feature-a")
-		hashB2, _ := gitutils.GetCurrentBranchCommit("feature-b")
+		hashA2, _ := git.GetCurrentBranchCommit("feature-a")
+		hashB2, _ := git.GetCurrentBranchCommit("feature-b")
 		assert.NotEqual(t, hashA1, hashA2, "feature-a hash should change")
 		assert.NotEqual(t, hashB1, hashB2, "feature-b hash should change")
 
 		// Verify parentage
-		parentA, _ := gitutils.GetMergeBase("main", "feature-a")
-		parentB, _ := gitutils.GetMergeBase("feature-a", "feature-b")
+		parentA, _ := git.GetMergeBase("main", "feature-a")
+		parentB, _ := git.GetMergeBase("feature-a", "feature-b")
 		assert.Equal(t, hashMain2, parentA, "feature-a should now be based on new main")
 		assert.Equal(t, hashA2, parentB, "feature-b should now be based on new feature-a")
 	})
@@ -125,7 +125,7 @@ func TestRestackCommand(t *testing.T) {
 		// Assertions
 		require.NoError(t, err, "so restack should exit cleanly (nil error) on conflict")
 		// Check Git state
-		isRebasing := gitutils.IsRebaseInProgress()
+		isRebasing := git.IsRebaseInProgress()
 		assert.True(t, isRebasing, "Git should be in a rebase state after conflict")
 		// TODO: Capture stderr and assert the conflict message was printed? More complex.
 	})

@@ -4,7 +4,7 @@ package cmd
 import (
 	"testing"
 
-	"github.com/benekuehn/socle/cli/so/gitutils"
+	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/testutils"
 	"github.com/stretchr/testify/assert"  // Using testify for assertions
 	"github.com/stretchr/testify/require" // Using testify for setup checks
@@ -27,24 +27,24 @@ func TestCreateCommand(t *testing.T) {
 		require.NoError(t, err, "so create failed unexpectedly")
 
 		// Check current branch
-		currentBranch, err := gitutils.GetCurrentBranch()
+		currentBranch, err := git.GetCurrentBranch()
 		require.NoError(t, err)
 		assert.Equal(t, "feature/b", currentBranch, "Should be checked out on new branch")
 
 		// Check branch exists
-		exists, err := gitutils.BranchExists("feature/b")
+		exists, err := git.BranchExists("feature/b")
 		require.NoError(t, err)
 		assert.True(t, exists, "New branch feature/b should exist")
 
 		// Check tracking config
-		parent, _ := gitutils.GetGitConfig("branch.feature/b.socle-parent")
-		base, _ := gitutils.GetGitConfig("branch.feature/b.socle-base")
+		parent, _ := git.GetGitConfig("branch.feature/b.socle-parent")
+		base, _ := git.GetGitConfig("branch.feature/b.socle-base")
 		assert.Equal(t, "feature/a", parent, "New branch parent should be feature/a")
 		assert.Equal(t, "main", base, "New branch base should be main")
 
 		// Check no new commit was made on feature/b immediately
-		commitHashB, _ := gitutils.GetCurrentBranchCommit("feature/b")
-		commitHashA, _ := gitutils.GetCurrentBranchCommit("feature/a")
+		commitHashB, _ := git.GetCurrentBranchCommit("feature/b")
+		commitHashA, _ := git.GetCurrentBranchCommit("feature/a")
 		assert.Equal(t, commitHashA, commitHashB, "feature/b should point to same commit as feature/a initially")
 	})
 
@@ -65,21 +65,21 @@ func TestCreateCommand(t *testing.T) {
 		// Assertions
 		require.NoError(t, err, "so create failed unexpectedly")
 
-		currentBranch, _ := gitutils.GetCurrentBranch()
+		currentBranch, _ := git.GetCurrentBranch()
 		assert.Equal(t, "feature/b", currentBranch)
 
-		parent, _ := gitutils.GetGitConfig("branch.feature/b.socle-parent")
-		base, _ := gitutils.GetGitConfig("branch.feature/b.socle-base")
+		parent, _ := git.GetGitConfig("branch.feature/b.socle-parent")
+		base, _ := git.GetGitConfig("branch.feature/b.socle-base")
 		assert.Equal(t, "feature/a", parent)
 		assert.Equal(t, "main", base)
 
 		// Check commit was made on feature/b
-		commitHashB, _ := gitutils.GetCurrentBranchCommit("feature/b")
-		commitHashA, _ := gitutils.GetCurrentBranchCommit("feature/a")
+		commitHashB, _ := git.GetCurrentBranchCommit("feature/b")
+		commitHashA, _ := git.GetCurrentBranchCommit("feature/a")
 		assert.NotEqual(t, commitHashA, commitHashB, "feature/b should have a new commit")
 
 		// Check commit message
-		commitMsg, _ := gitutils.GetFirstCommitSubject("feature/a", "feature/b")
+		commitMsg, _ := git.GetFirstCommitSubject("feature/a", "feature/b")
 		assert.Equal(t, "Add newfile", commitMsg, "Commit message mismatch")
 
 		// Check file content

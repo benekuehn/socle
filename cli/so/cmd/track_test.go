@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/benekuehn/socle/cli/so/gitutils"
+	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/testutils"
 )
 
@@ -25,7 +25,7 @@ func TestTrackCommand(t *testing.T) {
 		}
 
 		// Assertion 2: Check Git config
-		parent, err := gitutils.GetGitConfig("branch.feature/a.socle-parent")
+		parent, err := git.GetGitConfig("branch.feature/a.socle-parent")
 		if err != nil {
 			t.Fatalf("Failed to get socle-parent config after track: %v", err)
 		}
@@ -33,7 +33,7 @@ func TestTrackCommand(t *testing.T) {
 			t.Errorf("Expected socle-parent to be 'main', but got '%s'", parent)
 		}
 
-		base, err := gitutils.GetGitConfig("branch.feature/a.socle-base")
+		base, err := git.GetGitConfig("branch.feature/a.socle-base")
 		if err != nil {
 			t.Fatalf("Failed to get socle-base config after track: %v", err)
 		}
@@ -59,14 +59,14 @@ func TestTrackCommand(t *testing.T) {
 		}
 
 		// Assertion 2: Config should remain unchanged
-		parent, err := gitutils.GetGitConfig("branch.feature/a.socle-parent")
+		parent, err := git.GetGitConfig("branch.feature/a.socle-parent")
 		if err != nil {
 			t.Fatalf("Failed to get socle-parent config: %v", err)
 		}
 		if parent != "main" {
 			t.Errorf("socle-parent changed unexpectedly, got '%s'", parent)
 		}
-		base, err := gitutils.GetGitConfig("branch.feature/a.socle-base")
+		base, err := git.GetGitConfig("branch.feature/a.socle-base")
 		if err != nil {
 			t.Fatalf("Failed to get socle-base config: %v", err)
 		}

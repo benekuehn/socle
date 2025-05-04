@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/benekuehn/socle/cli/so/gitutils"
+	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/ui"
 )
 
@@ -29,11 +29,11 @@ type createCmdRunner struct {
 
 func (r *createCmdRunner) run() error {
 	// 1. Get current branch info
-	parentBranch, err := gitutils.GetCurrentBranch()
+	parentBranch, err := git.GetCurrentBranch()
 	if err != nil {
 		return fmt.Errorf("failed to get current branch: %w", err)
 	}
-	parentCommit, err := gitutils.GetCurrentCommit()
+	parentCommit, err := git.GetCurrentCommit()
 	if err != nil {
 		return fmt.Errorf("failed to get current commit hash: %w", err)
 	}
@@ -41,8 +41,8 @@ func (r *createCmdRunner) run() error {
 	// 2. Check if parent branch is tracked
 	parentParentKey := fmt.Sprintf("branch.%s.socle-parent", parentBranch)
 	parentBaseKey := fmt.Sprintf("branch.%s.socle-base", parentBranch)
-	_, errParent := gitutils.GetGitConfig(parentParentKey)
-	parentBase, errBase := gitutils.GetGitConfig(parentBaseKey)
+	_, errParent := git.GetGitConfig(parentParentKey)
+	parentBase, errBase := git.GetGitConfig(parentBaseKey)
 
 	// Check if parent is tracked (needs both keys, essentially)
 	// Allow creating off a known base branch directly
@@ -85,10 +85,10 @@ func (r *createCmdRunner) run() error {
 	}
 
 	// 4. Validate new branch name
-	if err := gitutils.IsValidBranchName(newBranchName); err != nil {
+	if err := git.IsValidBranchName(newBranchName); err != nil {
 		return fmt.Errorf("invalid branch name '%s': %w", newBranchName, err)
 	}
-	exists, err := gitutils.BranchExists(newBranchName)
+	exists, err := git.BranchExists(newBranchName)
 	if err != nil {
 		return fmt.Errorf("failed to check if branch '%s' exists: %w", newBranchName, err)
 	}
@@ -97,7 +97,7 @@ func (r *createCmdRunner) run() error {
 	}
 
 	// 5. Check for uncommitted changes
-	hasChanges, err := gitutils.HasUncommittedChanges()
+	hasChanges, err := git.HasUncommittedChanges()
 	if err != nil {
 		return fmt.Errorf("failed to check working tree status: %w", err)
 	}
@@ -121,7 +121,7 @@ func (r *createCmdRunner) run() error {
 
 	r.logger.Debug("Creating branch...", "newBranchName", newBranchName, "parentBranch", parentBranch)
 	// 1. Create branch
-	if err := gitutils.CreateBranch(newBranchName, parentCommit); err != nil {
+	if err := git.CreateBranch(newBranchName, parentCommit); err != nil {
 		return fmt.Errorf("failed to create branch '%s': %w", newBranchName, err)
 	}
 
@@ -131,14 +131,14 @@ func (r *createCmdRunner) run() error {
 		if cleanupNeeded {
 			fmt.Fprintf(r.stderr, "Cleaning up branch '%s' due to error...\n", newBranchName)
 			// Best effort cleanup: try to switch back and delete created branch
-			_ = gitutils.CheckoutBranch(parentBranch)
-			_ = gitutils.BranchDelete(newBranchName)
+			_ = git.CheckoutBranch(parentBranch)
+			_ = git.BranchDelete(newBranchName)
 		}
 	}()
 
 	// 2. Checkout new branch
 	r.logger.Debug("Checking out", "newBranchName", newBranchName)
-	if err := gitutils.CheckoutBranch(newBranchName); err != nil {
+	if err := git.CheckoutBranch(newBranchName); err != nil {
 		return fmt.Errorf("failed to checkout new branch '%s': %w", newBranchName, err)
 	}
 
@@ -171,7 +171,7 @@ func (r *createCmdRunner) run() error {
 		switch stageChoice {
 		case "Stage all changes (`git add .`)", "add-all":
 			r.logger.Debug("Staging all changes...")
-			if err := gitutils.StageAllChanges(); err != nil {
+			if err := git.StageAllChanges(); err != nil {
 				return fmt.Errorf("failed to stage all changes: %w", err)
 			}
 			stagedSomething = true
@@ -182,12 +182,12 @@ func (r *createCmdRunner) run() error {
 				stagedSomething = false
 			} else {
 				r.logger.Info("Starting interactive staging (`git add -p`)...")
-				r.logger.Debug("Calling gitutils.StageInteractively")
-				if err := gitutils.StageInteractively(); err != nil {
+				r.logger.Debug("Calling git.StageInteractively")
+				if err := git.StageInteractively(); err != nil {
 					return fmt.Errorf("interactive staging failed: %w", err)
 				}
 				r.logger.Debug("Interactive staging finished, checking if changes were staged")
-				haveStaged, errCheck := gitutils.HasStagedChanges()
+				haveStaged, errCheck := git.HasStagedChanges()
 				if errCheck != nil {
 					return fmt.Errorf("failed to check staged changes after interactive add: %w", errCheck)
 				}
@@ -206,14 +206,14 @@ func (r *createCmdRunner) run() error {
 		// Only commit if something was potentially staged
 		if stagedSomething {
 			// Verify again if anything is staged *before* committing
-			haveStaged, errCheck := gitutils.HasStagedChanges()
+			haveStaged, errCheck := git.HasStagedChanges()
 			if errCheck != nil {
 				return fmt.Errorf("failed to verify staged changes before commit: %w", errCheck)
 			}
 
 			if haveStaged {
 				r.logger.Debug("Committing staged changes", "message", commitMsg)
-				if err := gitutils.CommitChanges(commitMsg); err != nil {
+				if err := git.CommitChanges(commitMsg); err != nil {
 					fmt.Fprint(r.stderr, ui.Colors.FailureStyle.Render("Commit failed (hooks?). Aborting.\n"))
 					return fmt.Errorf("failed to commit changes: %w", err)
 				}
@@ -232,11 +232,11 @@ func (r *createCmdRunner) run() error {
 	newParentKey := fmt.Sprintf("branch.%s.socle-parent", newBranchName)
 	newBaseKey := fmt.Sprintf("branch.%s.socle-base", newBranchName)
 
-	if err := gitutils.SetGitConfig(newParentKey, parentBranch); err != nil {
+	if err := git.SetGitConfig(newParentKey, parentBranch); err != nil {
 		return fmt.Errorf("failed to set socle-parent config for '%s': %w", newBranchName, err)
 	}
-	if err := gitutils.SetGitConfig(newBaseKey, parentBase); err != nil {
-		_ = gitutils.UnsetGitConfig(newParentKey) // Attempt cleanup
+	if err := git.SetGitConfig(newBaseKey, parentBase); err != nil {
+		_ = git.UnsetGitConfig(newParentKey) // Attempt cleanup
 		return fmt.Errorf("failed to set socle-base config for '%s': %w", newBranchName, err)
 	}
 

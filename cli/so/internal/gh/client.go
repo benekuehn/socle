@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/benekuehn/socle/cli/so/gitutils"
+	cmdexec "github.com/benekuehn/socle/cli/so/internal/exec"
 	"github.com/google/go-github/v71/github"
 	"golang.org/x/oauth2"
 )
@@ -51,12 +51,17 @@ func NewClient(ctx context.Context, owner, repo string) (*Client, error) {
 		}
 		slog.Debug("Found 'gh' CLI. Attempting to fetch token...", "ghPath", ghPath)
 
-		ghToken, err := gitutils.RunExternalCommand("gh", "auth", "token")
+		// Check if gh cli is installed by trying to run 'gh --version'
+		_, err := cmdexec.RunExternalCommand("gh", "--version")
 		if err != nil {
-			desc := "Authentication failed: GITHUB_TOKEN environment variable not set "
-			desc += "AND failed to get token from 'gh' CLI. "
-			desc += "Please either set GITHUB_TOKEN or ensure 'gh auth login' is complete."
-			return nil, fmt.Errorf("%s\ngh command error: %w", desc, err)
+			return nil, fmt.Errorf("gh cli not installed or not found in PATH: %w", err)
+		}
+		slog.Debug("Found 'gh' CLI. Attempting to fetch token...", "ghPath", ghPath)
+
+		// Use gh auth token to get token
+		ghToken, err := cmdexec.RunExternalCommand("gh", "auth", "token")
+		if err != nil {
+			return nil, fmt.Errorf("error getting gh auth token: %w", err)
 		}
 		if ghToken == "" {
 			// gh command ran but returned empty token

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/benekuehn/socle/cli/so/gitutils"
 	"github.com/benekuehn/socle/cli/so/internal/gh"
+	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/testutils"
 	"github.com/google/go-github/v71/github"
 	"github.com/stretchr/testify/assert"
@@ -88,7 +88,7 @@ func TestSubmitCommand(t *testing.T) {
 
 		// Expectations for feature-a
 		// Assume config check might happen, return not found
-		mockClient.On("GetPullRequest", mock.AnythingOfType("int")).Return(nil, gitutils.ErrConfigNotFound).Maybe()
+		mockClient.On("GetPullRequest", mock.AnythingOfType("int")).Return(nil, git.ErrConfigNotFound).Maybe()
 		// Expect PR creation
 		mockClient.On("CreatePullRequest", "feature-a", "main", "feat: commit on feature-a", "Test Body A", false).Return(
 			&github.PullRequest{Number: github.Ptr(101), HTMLURL: github.Ptr("url-a"), Title: github.Ptr("feat: commit on feature-a")}, nil,
@@ -113,8 +113,8 @@ func TestSubmitCommand(t *testing.T) {
 		mockClient.AssertExpectations(t) // Verify calls
 
 		// Check Git Config was written for feature-a
-		prNumA, _ := gitutils.GetGitConfig("branch.feature-a.socle-pr-number")
-		commentIdA, _ := gitutils.GetGitConfig("branch.feature-a.socle-comment-id")
+		prNumA, _ := git.GetGitConfig("branch.feature-a.socle-pr-number")
+		commentIdA, _ := git.GetGitConfig("branch.feature-a.socle-comment-id")
 		assert.Equal(t, "101", prNumA)
 		assert.Equal(t, "5001", commentIdA)
 	})
@@ -155,7 +155,7 @@ func TestSubmitCommand(t *testing.T) {
 
 		// Expectations for feature-b (create path)
 		// Assume config check might happen, return not found
-		mockClient.On("GetPullRequest", mock.AnythingOfType("int")).Return(nil, gitutils.ErrConfigNotFound).Maybe() // Need to allow this check if it happens before create check
+		mockClient.On("GetPullRequest", mock.AnythingOfType("int")).Return(nil, git.ErrConfigNotFound).Maybe() // Need to allow this check if it happens before create check
 		// Expect PR creation for feature-b
 		mockClient.On("CreatePullRequest", "feature-b", "feature-a", "feat: commit on feature-b", "Test Body B", false).Return(
 			&github.PullRequest{Number: github.Ptr(102), HTMLURL: github.Ptr("url-b"), Title: github.Ptr("feat: commit on feature-b")}, nil,
@@ -184,10 +184,10 @@ func TestSubmitCommand(t *testing.T) {
 		mockClient.AssertExpectations(t) // Verify calls
 
 		// Check Git Config was written/updated correctly
-		prNumA, _ := gitutils.GetGitConfig("branch.feature-a.socle-pr-number")
-		prNumB, _ := gitutils.GetGitConfig("branch.feature-b.socle-pr-number")
-		commentIdA, _ := gitutils.GetGitConfig("branch.feature-a.socle-comment-id")
-		commentIdB, _ := gitutils.GetGitConfig("branch.feature-b.socle-comment-id")
+		prNumA, _ := git.GetGitConfig("branch.feature-a.socle-pr-number")
+		prNumB, _ := git.GetGitConfig("branch.feature-b.socle-pr-number")
+		commentIdA, _ := git.GetGitConfig("branch.feature-a.socle-comment-id")
+		commentIdB, _ := git.GetGitConfig("branch.feature-b.socle-comment-id")
 
 		assert.Equal(t, "101", prNumA, "feature-a PR# should still be 101")
 		assert.Equal(t, "102", prNumB, "feature-b PR# should be 102")

@@ -8,9 +8,9 @@ import (
 	"log/slog"
 	"strconv"
 
-	"github.com/benekuehn/socle/cli/so/gitutils"
 	"github.com/benekuehn/socle/cli/so/internal/cmdutils"
 	"github.com/benekuehn/socle/cli/so/internal/gh"
+	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/ui"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -27,7 +27,7 @@ type showCmdRunner struct {
 }
 
 func (r *showCmdRunner) run(ctx context.Context) error {
-	currentBranch, stack, baseBranch, err := gitutils.GetCurrentStackInfo()
+	currentBranch, stack, baseBranch, err := git.GetCurrentStackInfo()
 	handled, processedErr := cmdutils.HandleStartupError(err, currentBranch, r.stdout, r.stderr)
 	if processedErr != nil {
 		return processedErr
@@ -80,7 +80,7 @@ func (r *showCmdRunner) run(ctx context.Context) error {
 
 // getRebaseStatus determines the rebase status string and render function
 func getRebaseStatus(parentName, branchName string, errW io.Writer) statusResult {
-	needsRestack, errCheck := gitutils.NeedsRestack(parentName, branchName)
+	needsRestack, errCheck := git.NeedsRestack(parentName, branchName)
 
 	if errCheck != nil {
 		fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("  Warning: Could not check restack status for '%s': %v\n"), branchName, errCheck)
@@ -97,9 +97,9 @@ func getPrStatusDisplay(ctx context.Context, ghClient **gh.Client, clientErr *er
 	defaultRender := func(s string) string { return s }
 
 	prNumberKey := fmt.Sprintf("branch.%s.socle-pr-number", branchName)
-	prNumberStr, errPRNum := gitutils.GetGitConfig(prNumberKey)
+	prNumberStr, errPRNum := git.GetGitConfig(prNumberKey)
 
-	if errors.Is(errPRNum, gitutils.ErrConfigNotFound) {
+	if errors.Is(errPRNum, git.ErrConfigNotFound) {
 		return statusResult{"(PR: Not Submitted)", defaultRender}
 	} else if errPRNum != nil {
 		fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("  Warning: Could not read PR number config for '%s': %v\n"), branchName, errPRNum)
@@ -119,11 +119,11 @@ func getPrStatusDisplay(ctx context.Context, ghClient **gh.Client, clientErr *er
 	if !*clientInitialized {
 		*clientInitialized = true
 		remoteName := "origin"
-		remoteURL, errURL := gitutils.GetRemoteURL(remoteName)
+		remoteURL, errURL := git.GetRemoteURL(remoteName)
 		if errURL != nil {
 			*clientErr = fmt.Errorf("cannot get remote URL '%s': %w", remoteName, errURL)
 		} else {
-			owner, repoName, errParse := gitutils.ParseOwnerAndRepo(remoteURL)
+			owner, repoName, errParse := git.ParseOwnerAndRepo(remoteURL)
 			if errParse != nil {
 				*clientErr = fmt.Errorf("cannot parse owner/repo from '%s': %w", remoteURL, errParse)
 			} else {

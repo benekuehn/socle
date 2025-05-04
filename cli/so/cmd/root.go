@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/benekuehn/socle/cli/so/gitutils"
+	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/spf13/cobra"
 )
 
@@ -39,7 +39,7 @@ var rootCmd = &cobra.Command{
 		slog.Debug("Debug logging enabled")
 
 		// Git repo check
-		if !gitutils.IsGitRepo() {
+		if !git.IsGitRepo() {
 			// Use slog for this internal error message? Or keep direct print?
 			// Let's keep direct print for this specific startup failure.
 			return fmt.Errorf("error: not a git repository (or any of the parent directories)")

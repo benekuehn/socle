@@ -8,10 +8,9 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/benekuehn/socle/cli/so/gitutils"
-	"github.com/benekuehn/socle/cli/so/internal/actions"
 	"github.com/benekuehn/socle/cli/so/internal/cmdutils"
 	"github.com/benekuehn/socle/cli/so/internal/gh"
+	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -44,6 +43,9 @@ type submitCmdRunner struct {
 	remoteName   string
 	prInfoMap    map[string]submittedPrInfo
 	submitErrors []error
+
+	// --- Dependencies (for testing) ---
+	GhClient gh.ClientInterface
 }
 
 func (r *submitCmdRunner) run(ctx context.Context, cmd *cobra.Command) error {
@@ -93,13 +95,13 @@ func (r *submitCmdRunner) prepareSubmit(ctx context.Context) ([]string, map[stri
 	r.logger.Debug("Preparing submit operation")
 
 	r.remoteName = "origin" // TODO: Make configurable?
-	remoteURL, err := gitutils.GetRemoteURL(r.remoteName)
+	remoteURL, err := git.GetRemoteURL(r.remoteName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot get remote URL for '%s': %w", r.remoteName, err)
 	}
 	r.logger.Debug("Found remote URL", "remote", r.remoteName, "url", remoteURL)
 
-	r.owner, r.repoName, err = gitutils.ParseOwnerAndRepo(remoteURL)
+	r.owner, r.repoName, err = git.ParseOwnerAndRepo(remoteURL)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot parse owner/repo from remote '%s' URL '%s': %w", r.remoteName, remoteURL, err)
 	}
@@ -112,7 +114,7 @@ func (r *submitCmdRunner) prepareSubmit(ctx context.Context) ([]string, map[stri
 	r.logger.Debug("GitHub client created/obtained")
 
 	// Handle potential startup issues (like not being in a git repo or stack)
-	currentBranch, currentStack, _, err := gitutils.GetCurrentStackInfo()
+	currentBranch, currentStack, _, err := git.GetCurrentStackInfo()
 	handled, processedErr := cmdutils.HandleStartupError(err, currentBranch, r.stdout, r.stderr)
 	if processedErr != nil {
 		return nil, nil, processedErr
@@ -123,7 +125,7 @@ func (r *submitCmdRunner) prepareSubmit(ctx context.Context) ([]string, map[stri
 	r.logger.Debug("Startup checks passed", "currentBranch", currentBranch)
 
 	r.logger.Debug("Determining full stack...")
-	fullStack, allParents, err := gitutils.GetFullStackForSubmit(currentStack)
+	fullStack, allParents, err := git.GetFullStackForSubmit(currentStack)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to determine full stack: %w", err)
 	}
@@ -159,7 +161,7 @@ func (r *submitCmdRunner) processStack(ctx context.Context, cmd *cobra.Command, 
 		prInfoResult, err := r.submitBranch(ctx, cmd, branch, parent)
 		if err != nil {
 			// submitBranch returns fatal errors (push fail, action fail) or ErrSubmitCancelled
-			if errors.Is(err, actions.ErrSubmitCancelled) {
+			if errors.Is(err, gh.ErrSubmitCancelled) {
 				fmt.Fprintln(r.stdout, ui.Colors.WarningStyle.Render("Submit operation cancelled."))
 				return err // Return cancellation error to halt processing
 			}
@@ -199,7 +201,7 @@ func (r *submitCmdRunner) updateStackComments(ctx context.Context, fullStack []s
 
 		commentBody := renderStackCommentBody(fullStack, branch, stackCommentMarker, r.prInfoMap)
 
-		err := actions.EnsureStackComment(ctx, r.ghClient, branch, prInfo.Number, commentBody, stackCommentMarker)
+		err := gh.EnsureStackComment(ctx, r.ghClient, branch, prInfo.Number, commentBody, stackCommentMarker)
 		if err != nil {
 			// TODO: Differentiate critical errors vs warnings?
 			wrappedErr := fmt.Errorf("error processing stack comment for PR #%d (branch '%s'): %w", prInfo.Number, branch, err)
@@ -242,7 +244,7 @@ func (r *submitCmdRunner) submitBranch( // Make it a method of submitCmdRunner
 	// 1. Push Branch (if enabled)
 	if doPush {
 		r.logger.Debug("Pushing branch", "branch", branch, "remote", r.remoteName, "force", forcePush)
-		err := gitutils.PushBranch(branch, r.remoteName, forcePush)
+		err := git.PushBranch(branch, r.remoteName, forcePush)
 		if err != nil {
 			// Treat push failure as fatal
 			return nil, fmt.Errorf("failed to push branch '%s': %w", branch, err)
@@ -253,16 +255,16 @@ func (r *submitCmdRunner) submitBranch( // Make it a method of submitCmdRunner
 	}
 
 	// 2. Call the SubmitBranch action to handle PR logic
-	opts := actions.SubmitBranchOptions{
+	opts := gh.SubmitBranchOptions{
 		// Use runner's config
 		IsDraft:               r.draft,
 		TestSubmitTitle:       r.testSubmitTitle,
 		TestSubmitBody:        r.testSubmitBody,
 		TestSubmitEditConfirm: r.testSubmitEditConfirm,
 	}
-	r.logger.Debug("Calling actions.SubmitBranch", "branch", branch, "options", opts)
+	r.logger.Debug("Calling gh.SubmitBranch", "branch", branch, "options", opts)
 
-	finalPR, err := actions.SubmitBranch(ctx, r.ghClient, cmd, branch, parent, opts)
+	finalPR, err := gh.SubmitBranch(ctx, r.ghClient, cmd, branch, parent, opts)
 	if err != nil {
 		// Error could be fatal API error or ErrSubmitCancelled from action
 		return nil, err // Propagate error up (already wrapped by SubmitBranch if needed)

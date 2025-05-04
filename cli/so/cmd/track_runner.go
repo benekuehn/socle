@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/benekuehn/socle/cli/so/gitutils"
+	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/ui"
 	// Assuming HandleSurveyInterrupt is there or moved to ui
 )
@@ -25,7 +25,7 @@ type trackCmdRunner struct {
 }
 
 func (r *trackCmdRunner) run() error {
-	currentBranch, err := gitutils.GetCurrentBranch()
+	currentBranch, err := git.GetCurrentBranch()
 	if err != nil {
 		return fmt.Errorf("failed to get current branch: %w", err)
 	}
@@ -37,20 +37,20 @@ func (r *trackCmdRunner) run() error {
 
 	// 2. Check if already tracked
 	parentConfigKey := fmt.Sprintf("branch.%s.socle-parent", currentBranch)
-	existingParent, errGetParent := gitutils.GetGitConfig(parentConfigKey)
+	existingParent, errGetParent := git.GetGitConfig(parentConfigKey)
 	if errGetParent == nil && existingParent != "" {
 		baseConfigKey := fmt.Sprintf("branch.%s.socle-base", currentBranch)
-		existingBase, _ := gitutils.GetGitConfig(baseConfigKey)
+		existingBase, _ := git.GetGitConfig(baseConfigKey)
 		fmt.Fprintf(r.stdout, "Branch '%s' is already tracked.\n", currentBranch)
 		fmt.Fprintf(r.stdout, "  Parent: %s\n", existingParent)
 		fmt.Fprintf(r.stdout, "  Base:   %s\n", existingBase)
 		return nil
-	} else if errGetParent != nil && !errors.Is(errGetParent, gitutils.ErrConfigNotFound) {
+	} else if errGetParent != nil && !errors.Is(errGetParent, git.ErrConfigNotFound) {
 		return fmt.Errorf("failed to check tracking status for branch '%s': %w", currentBranch, errGetParent) // Use actual error
 	}
 
 	// 3. Get potential parent branches
-	allBranches, err := gitutils.GetLocalBranches()
+	allBranches, err := git.GetLocalBranches()
 	if err != nil {
 		return fmt.Errorf("failed to list local branches: %w", err)
 	}
@@ -100,11 +100,11 @@ func (r *trackCmdRunner) run() error {
 		selectedBase = selectedParent
 	} else {
 		parentBaseKey := fmt.Sprintf("branch.%s.socle-base", selectedParent)
-		inheritedBase, errGetBase := gitutils.GetGitConfig(parentBaseKey)
+		inheritedBase, errGetBase := git.GetGitConfig(parentBaseKey)
 		if errGetBase == nil && inheritedBase != "" {
 			selectedBase = inheritedBase
 			r.logger.Debug("Inheriting base from tracked parent", "base", selectedBase, "parent", selectedParent)
-		} else if errors.Is(errGetBase, gitutils.ErrConfigNotFound) {
+		} else if errors.Is(errGetBase, git.ErrConfigNotFound) {
 			r.logger.Debug("Selected parent is not tracked", "parent", selectedParent)
 			if r.testAssumeBase != "" {
 				r.logger.Debug("Using base from test flag", "testBase", r.testAssumeBase)
@@ -128,15 +128,15 @@ func (r *trackCmdRunner) run() error {
 	// 6. Store metadata in git config
 	fmt.Fprintf(r.stdout, "Tracking branch '%s' with parent '%s' and base '%s'.\n", currentBranch, selectedParent, selectedBase)
 
-	err = gitutils.SetGitConfig(parentConfigKey, selectedParent)
+	err = git.SetGitConfig(parentConfigKey, selectedParent)
 	if err != nil {
 		return fmt.Errorf("failed to set socle-parent config: %w", err)
 	}
 
 	baseConfigKey := fmt.Sprintf("branch.%s.socle-base", currentBranch)
-	err = gitutils.SetGitConfig(baseConfigKey, selectedBase)
+	err = git.SetGitConfig(baseConfigKey, selectedBase)
 	if err != nil {
-		_ = gitutils.UnsetGitConfig(parentConfigKey)
+		_ = git.UnsetGitConfig(parentConfigKey)
 		return fmt.Errorf("failed to set socle-base config: %w", err)
 	}
 
