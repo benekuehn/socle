@@ -85,7 +85,7 @@ release:
 
 # Homebrew Tap configuration
 # Reference: https://goreleaser.com/customization/homebrew/
-homebrew:
+brews:
   - # Tap repository details
     tap:
       owner: benekuehn
@@ -107,7 +107,7 @@ homebrew:
     description: "CLI tool for managing stacked Git branches"
 
     # License for the formula
-    license: "MIT" # UPDATE THIS with your actual license
+    license: "MIT"
 
     # Specify which build IDs this formula applies to
     # Useful if you have multiple builds (e.g., server, cli)
