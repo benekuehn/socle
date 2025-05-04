@@ -2,11 +2,13 @@ package cmd
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/benekuehn/socle/cli/so/internal/testutils"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
@@ -63,6 +65,10 @@ func initializeCobraAppForTest() (*cobra.Command, error) {
 	addCmd(createCmd)
 	addCmd(restackCmd)
 	addCmd(submitCmd)
+	addCmd(topCmd)    // Add the new top command
+	addCmd(bottomCmd) // Add the new bottom command
+	addCmd(upCmd)     // Add the new up command
+	addCmd(downCmd)   // Add the new down command
 	// Re-add test flags if needed (this part is still awkward)
 	testRootCmd.Flags().AddFlagSet(trackCmd.Flags())
 	return testRootCmd, nil
@@ -129,4 +135,13 @@ func readFile(t *testing.T, dir, filename string) string {
 	content, err := os.ReadFile(filepath.Join(dir, filename))
 	require.NoError(t, err, "Failed to read file %s", filename)
 	return string(content)
+}
+
+// Helper to set socle tracking metadata for a branch
+func trackBranch(t *testing.T, repoPath, branch, parent, base string) {
+	t.Helper()
+	parentKey := fmt.Sprintf("branch.%s.socle-parent", branch)
+	baseKey := fmt.Sprintf("branch.%s.socle-base", branch)
+	testutils.RunCommand(t, repoPath, "git", "config", "--local", parentKey, parent)
+	testutils.RunCommand(t, repoPath, "git", "config", "--local", baseKey, base)
 }

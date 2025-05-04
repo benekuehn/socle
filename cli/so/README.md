@@ -69,6 +69,28 @@ Most so commands need to be run from within a Git repository.
 <!-- CLI_REFERENCE_START -->
 *This section is auto-generated. Do not edit manually.*
 
+### so bottom
+Navigates to the first branch stacked directly on top of the base branch.
+
+The stack is determined by the tracking information set via 'so track'.
+This command finds the first branch after the base in the sequence leading to the top.
+
+```
+so bottom [flags]
+```
+
+```
+  -h, --help   help for bottom
+```
+
+### Options inherited from parent commands
+
+```
+      --debug   Enable debug logging output
+```
+
+---
+
 ### so create
 Creates a new branch stacked on top of the current branch.
 
@@ -85,6 +107,28 @@ so create [branch-name] [flags]
 ```
   -h, --help             help for create
   -m, --message string   Commit message to use for uncommitted changes
+```
+
+### Options inherited from parent commands
+
+```
+      --debug   Enable debug logging output
+```
+
+---
+
+### so down
+Navigates one level down the stack towards the base branch.
+
+The stack is determined by the tracking information set via 'so track'.
+This command finds the immediate parent of the current branch.
+
+```
+so down [flags]
+```
+
+```
+  -h, --help   help for down
 ```
 
 ### Options inherited from parent commands
@@ -178,6 +222,28 @@ so submit [flags]
 
 ---
 
+### so top
+Navigates to the highest branch in the current stack.
+
+The stack is determined by the tracking information set via 'so track'.
+This command finds the last branch in the sequence starting from the base branch.
+
+```
+so top [flags]
+```
+
+```
+  -h, --help   help for top
+```
+
+### Options inherited from parent commands
+
+```
+      --debug   Enable debug logging output
+```
+
+---
+
 ### so track
 Associates the current branch with a parent branch to define its position
 within a stack. This allows 'socle show' to display the specific stack you are on.
@@ -188,6 +254,28 @@ so track [flags]
 
 ```
   -h, --help   help for track
+```
+
+### Options inherited from parent commands
+
+```
+      --debug   Enable debug logging output
+```
+
+---
+
+### so up
+Navigates one level up the stack towards the base branch.
+
+The stack is determined by the tracking information set via 'so track'.
+This command finds the immediate parent of the current branch.
+
+```
+so up [flags]
+```
+
+```
+  -h, --help   help for up
 ```
 
 ### Options inherited from parent commands

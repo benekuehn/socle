@@ -125,11 +125,11 @@ func (r *submitCmdRunner) prepareSubmit(ctx context.Context) ([]string, map[stri
 	r.logger.Debug("Startup checks passed", "currentBranch", currentBranch)
 
 	r.logger.Debug("Determining full stack...")
-	fullStack, allParents, err := git.GetFullStackForSubmit(currentStack)
+	fullStack, allParents, err := git.GetFullStack(currentStack)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to determine full stack: %w", err)
 	}
-	r.logger.Debug("Full stack identified for processing", "fullStack", fullStack)
+	r.logger.Debug("Full ordered stack identified for processing", "fullStack", fullStack)
 
 	if len(fullStack) <= 1 {
 		_, _ = fmt.Fprintln(r.stdout, "Current branch is the base or directly on base. Nothing to submit.")
