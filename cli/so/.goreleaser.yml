@@ -31,9 +31,7 @@ builds:
     # Go OS/Arch targets
     # Reference: https://goreleaser.com/customization/build/#building-for-different-architectures
     goos:
-      - linux
-      - windows
-      - darwin # macOS
+      - darwin  # macOS
     goarch:
       - amd64
       - arm64 # For Apple Silicon and ARM servers
