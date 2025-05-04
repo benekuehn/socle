@@ -52,12 +52,6 @@ func SetupRootCommandForTest() *cobra.Command {
 	return testRootCmd
 }
 
-// ResetTestFlags resets package-level test flag variables between tests.
-func ResetTestFlags() {
-	testSelectedParent = ""
-	testAssumeBase = ""
-}
-
 func initializeCobraAppForTest() (*cobra.Command, error) {
 	// It can directly access trackCmd, showCmd etc. as they are in the same package
 	var testDebugLogging bool
@@ -78,9 +72,6 @@ func initializeCobraAppForTest() (*cobra.Command, error) {
 // and resetter. No longer exported.
 func runSoCommand(t *testing.T, args ...string) error {
 	t.Helper()
-	// Reset package-level test flags
-	testSelectedParent = "" // Assuming these are defined in this package (e.g., track.go)
-	testAssumeBase = ""
 
 	testRootCmd, err := initializeCobraAppForTest() // Call local initializer
 	if err != nil {
@@ -96,7 +87,6 @@ func runSoCommand(t *testing.T, args ...string) error {
 
 func runSoCommandWithOutput(t *testing.T, args ...string) (stdout, stderr string, err error) {
 	t.Helper()
-	ResetTestFlags() // Reset flags before each command run
 
 	// Create new buffer for stdout and stderr
 	var outBuf, errBuf bytes.Buffer
