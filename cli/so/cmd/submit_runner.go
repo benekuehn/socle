@@ -111,7 +111,7 @@ func (r *submitCmdRunner) prepareSubmit(ctx context.Context) ([]string, map[stri
 	r.logger.Debug("GitHub client created/obtained")
 
 	// Handle potential startup issues (like not being in a git repo or stack)
-	currentBranch, currentStack, _, err := getCurrentStackInfo()
+	currentBranch, currentStack, _, err := gitutils.GetCurrentStackInfo()
 	handled, processedErr := handleShowStartupError(err, currentBranch, r.stdout, r.stderr)
 	if processedErr != nil {
 		return nil, nil, processedErr

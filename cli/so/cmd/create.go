@@ -7,16 +7,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Flag variables
-var createMessage string
-
-// --- ADD TESTING FLAGS ---
-var (
-	testBranchName      string // Bypass branch name prompt
-	testStageChoice     string // Bypass stage choice prompt ("add-all", "add-p", "cancel")
-	testAddPResultEmpty bool   // Simulate 'git add -p' staging nothing
-)
-
 var createCmd = &cobra.Command{
 	Use:   "create [branch-name]",
 	Short: "Create the next branch in the stack, optionally committing current changes",
@@ -40,11 +30,11 @@ If there are uncommitted changes in the working directory:
 			logger: logger,
 			stdout: cmd.OutOrStdout(),
 			stderr: cmd.ErrOrStderr(),
-			stdin:  os.Stdin, // Assuming Stdin is appropriate here
+			stdin:  os.Stdin,
 
 			// Populate config from flags
-			createMessage: createMessage, // Use the package-level var bound to the flag
-			branchNameArg: branchNameArg, // Pass the argument
+			createMessage: cmd.Flag("message").Value.String(),
+			branchNameArg: branchNameArg,
 
 			// --- TESTING FLAGS ---
 			testBranchName:      cmd.Flag("test-branch-name").Value.String(),
@@ -58,10 +48,11 @@ If there are uncommitted changes in the working directory:
 
 func init() {
 	AddCommand(createCmd)
-	createCmd.Flags().StringVarP(&createMessage, "message", "m", "", "Commit message to use for uncommitted changes")
-	createCmd.Flags().StringVar(&testBranchName, "test-branch-name", "", "Branch name to use (testing only)")
-	createCmd.Flags().StringVar(&testStageChoice, "test-stage-choice", "", "Staging choice [add-all|add-p|cancel] (testing only)")
-	createCmd.Flags().BoolVar(&testAddPResultEmpty, "test-add-p-empty", false, "Simulate 'git add -p' staging nothing (testing only)")
+	createCmd.Flags().StringP("message", "m", "", "Commit message to use for uncommitted changes")
+
+	createCmd.Flags().String("test-branch-name", "", "Branch name to use (testing only)")
+	createCmd.Flags().String("test-stage-choice", "", "Staging choice [add-all|add-p|cancel] (testing only)")
+	createCmd.Flags().Bool("test-add-p-empty", false, "Simulate 'git add -p' staging nothing (testing only)")
 	_ = createCmd.Flags().MarkHidden("test-branch-name")
 	_ = createCmd.Flags().MarkHidden("test-stage-choice")
 	_ = createCmd.Flags().MarkHidden("test-add-p-empty")

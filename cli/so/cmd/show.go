@@ -33,7 +33,7 @@ Includes status indicating if a branch needs rebasing onto its parent.`, // Upda
 		errW := cmd.ErrOrStderr()
 
 		// --- Get Current Branch & Stack Info ---
-		currentBranch, stack, baseBranch, err := getCurrentStackInfo()
+		currentBranch, stack, baseBranch, err := gitutils.GetCurrentStackInfo()
 		handled, processedErr := handleShowStartupError(err, currentBranch, outW, errW)
 		if processedErr != nil {
 			// Handle unexpected errors from getCurrentStackInfo or the handler itself

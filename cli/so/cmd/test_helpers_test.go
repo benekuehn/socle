@@ -56,13 +56,6 @@ func SetupRootCommandForTest() *cobra.Command {
 func ResetTestFlags() {
 	testSelectedParent = ""
 	testAssumeBase = ""
-	testBranchName = ""
-	testStageChoice = ""
-	testAddPResultEmpty = false
-	// testSubmitTitle = "" // REMOVED - Handled via args
-	// testSubmitBody = "" // REMOVED - Handled via args
-	// testSubmitEditConfirm = false // REMOVED - Handled via args
-	// Reset other test flags from other commands here...
 }
 
 func initializeCobraAppForTest() (*cobra.Command, error) {
