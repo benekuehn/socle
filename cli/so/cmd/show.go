@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
+	"io"
 	"strconv"
 	"strings"
 
@@ -28,13 +28,22 @@ branch to the current branch, based on metadata set by 'socle track'.
 Includes status indicating if a branch needs rebasing onto its parent.`, // Updated Long desc
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
+		// Get the output/error streams from the command
+		outW := cmd.OutOrStdout()
+		errW := cmd.ErrOrStderr()
 
 		// --- Get Current Branch & Stack Info ---
 		currentBranch, stack, baseBranch, err := getCurrentStackInfo()
-		if err != nil {
-			return handleShowStartupError(err, currentBranch)
-		} // Use helper for startup errors
-		fmt.Printf("Current branch: %s (Stack base: %s)\n", currentBranch, baseBranch)
+		handled, processedErr := handleShowStartupError(err, currentBranch, outW, errW)
+		if processedErr != nil {
+			// Handle unexpected errors from getCurrentStackInfo or the handler itself
+			return processedErr // Return actual error
+		}
+		if handled {
+			// If the handler dealt with it (printed "on base" or "untracked"), exit successfully.
+			return nil
+		}
+		fmt.Fprintf(outW, "Current branch: %s (Stack base: %s)\n", currentBranch, baseBranch)
 
 		// --- Initialize GitHub Client (Lazy) ---
 		// We only initialize it if we actually need to fetch PRs
@@ -42,29 +51,38 @@ Includes status indicating if a branch needs rebasing onto its parent.`, // Upda
 		var ghClientErr error                // Store potential client init error
 		var ghClientInitialized bool = false // Track if we tried init
 		// --- Print the stack with status ---
-		fmt.Println("\nCurrent Stack Status:")
+		fmt.Fprintln(outW, "\nCurrent Stack Status:")
 		// Print base branch first (no status check needed)
 		baseMarker := ""
 		if baseBranch == currentBranch {
 			baseMarker = " *"
 		}
-		fmt.Printf("  %s (base)%s\n", baseBranch, baseMarker)
+		fmt.Fprintf(outW, "  %s (base)%s\n", baseBranch, baseMarker)
+
+		ancestorNeedsRestack := false
 
 		// Loop through stack branches (skip base at index 0)
 		for i := 1; i < len(stack); i++ {
 			branchName := stack[i]
 			parentName := stack[i-1]
+			rebaseStatus := getRebaseStatus(parentName, branchName, errW)
 
-			rebaseStatus := getRebaseStatus(parentName, branchName)
-			// Call the refactored PR status helper
-			prStatus := getPrStatusDisplay(ctx, &ghClient, &ghClientErr, &ghClientInitialized, branchName)
+			// Mark as needs restack if direct check OR ancestor check is true
+			effectiveNeedsRestack := (rebaseStatus.text == "(Needs Restack)") || ancestorNeedsRestack
+			if effectiveNeedsRestack && rebaseStatus.text == "(Up-to-date)" {
+				// Override status if ancestor needed it but direct check passed
+				rebaseStatus = statusResult{"(Needs Restack)", func(s string) string { return ui.Colors.WarningStyle.Render(s) }}
+			}
+			// Update ancestor flag for the *next* iteration
+			ancestorNeedsRestack = effectiveNeedsRestack
 
+			prStatus := getPrStatusDisplay(ctx, &ghClient, &ghClientErr, &ghClientInitialized, branchName, errW)
 			marker := ""
 			if branchName == currentBranch {
 				marker = " *"
 			}
 
-			fmt.Printf("  -> %s %s %s%s\n",
+			fmt.Fprintf(outW, "  -> %s %s %s%s\n",
 				branchName,
 				rebaseStatus.render(rebaseStatus.text),
 				prStatus.render(prStatus.text),
@@ -79,33 +97,38 @@ Includes status indicating if a branch needs rebasing onto its parent.`, // Upda
 // --- Helper Functions ---
 
 // handleShowStartupError manages errors from getCurrentStackInfo for better UX
-func handleShowStartupError(err error, currentBranchAttempt string) error {
-	// Attempt to get current branch again if helper failed early
+// handleShowStartupError updated to return the original error if it wasn't handled
+func handleShowStartupError(err error, currentBranchAttempt string, outW io.Writer, errW io.Writer) (handled bool, returnErr error) {
 	cb := currentBranchAttempt
 	if cb == "" {
 		cb, _ = gitutils.GetCurrentBranch()
 	}
 
-	if err != nil && strings.Contains(err.Error(), "not tracked by socle") {
-		knownBases := map[string]bool{"main": true, "master": true, "develop": true} // TODO: Configurable
-		if knownBases[cb] {
-			fmt.Printf("Currently on the base branch '%s'.\n", cb)
-		} else {
-			fmt.Printf("Branch '%s' is not currently tracked by socle.\n", cb)
-			fmt.Println("Use 'so track' to associate it with a parent branch and start a stack.")
-		}
-		return nil // Clean exit for untracked/base branch
+	isUntrackedError := err != nil && errors.Is(err, gitutils.ErrConfigNotFound) || (err != nil && strings.Contains(err.Error(), "not tracked by socle")) // Make check more robust
+
+	knownBases := map[string]bool{"main": true, "master": true, "develop": true} // TODO: Configurable
+	isOnBase := knownBases[cb] && err == nil                                     // Only truly on base if no error getting info
+
+	if isOnBase {
+		fmt.Fprintf(outW, "Currently on the base branch '%s'.\n", cb)
+		return true, nil // Handled successfully, return true, nil error
+	} else if isUntrackedError {
+		fmt.Fprintf(outW, "Branch '%s' is not currently tracked by socle.\n", cb)
+		fmt.Fprintln(outW, "Use 'so track' to associate it with a parent branch and start a stack.")
+		return true, nil // Handled successfully, return true, nil error
 	}
-	// Otherwise, return the original, unexpected error
-	return err
+
+	// If we get here, it was either no error originally (and not on base),
+	// or an unexpected error. Return false (not handled) and the original error.
+	return false, err
 }
 
 // getRebaseStatus determines the rebase status string and render function
-func getRebaseStatus(parentName, branchName string) statusResult {
+func getRebaseStatus(parentName, branchName string, errW io.Writer) statusResult {
 	needsRestack, errCheck := gitutils.NeedsRestack(parentName, branchName)
 
 	if errCheck != nil {
-		fmt.Fprintf(os.Stderr, ui.Colors.WarningStyle.Render("  Warning: Could not check restack status for '%s': %v\n"), branchName, errCheck)
+		fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("  Warning: Could not check restack status for '%s': %v\n"), branchName, errCheck)
 		return statusResult{"(Rebase: Error)", func(s string) string { return ui.Colors.FailureStyle.Render(s) }}
 	} else if needsRestack {
 		return statusResult{"(Needs Restack)", func(s string) string { return ui.Colors.WarningStyle.Render(s) }}
@@ -115,7 +138,7 @@ func getRebaseStatus(parentName, branchName string) statusResult {
 }
 
 // getPrStatusDisplay reads config, calls gh service, and maps result to display statusResult
-func getPrStatusDisplay(ctx context.Context, ghClient **gh.Client, clientErr *error, clientInitialized *bool, branchName string) statusResult {
+func getPrStatusDisplay(ctx context.Context, ghClient **gh.Client, clientErr *error, clientInitialized *bool, branchName string, errW io.Writer) statusResult {
 	defaultRender := func(s string) string { return s }
 
 	// --- Step 1: Read Local Config ---
@@ -128,7 +151,7 @@ func getPrStatusDisplay(ctx context.Context, ghClient **gh.Client, clientErr *er
 		return statusResult{"(PR: Not Submitted)", defaultRender}
 	} else if errPRNum != nil {
 		// Any other error reading the config IS a config error
-		fmt.Fprintf(os.Stderr, ui.Colors.WarningStyle.Render("  Warning: Could not read PR number config for '%s': %v\n"), branchName, errPRNum)
+		fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("  Warning: Could not read PR number config for '%s': %v\n"), branchName, errPRNum)
 		return statusResult{"(PR: Config Err)", func(s string) string { return ui.Colors.FailureStyle.Render(s) }}
 	}
 
@@ -139,7 +162,7 @@ func getPrStatusDisplay(ctx context.Context, ghClient **gh.Client, clientErr *er
 	// --- Step 2: Parse PR Number ---
 	prNumber, errParsePR := strconv.Atoi(prNumberStr)
 	if errParsePR != nil {
-		fmt.Fprintf(os.Stderr, ui.Colors.WarningStyle.Render("  Warning: Could not parse PR number '%s' for '%s': %v\n"), prNumberStr, branchName, errParsePR)
+		fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("  Warning: Could not parse PR number '%s' for '%s': %v\n"), prNumberStr, branchName, errParsePR)
 		return statusResult{"(PR: Invalid #)", func(s string) string { return ui.Colors.FailureStyle.Render(s) }}
 	}
 	// --- Step 3: Ensure GitHub Client is Initialized (Lazy) ---
@@ -163,7 +186,7 @@ func getPrStatusDisplay(ctx context.Context, ghClient **gh.Client, clientErr *er
 			}
 		}
 		if *clientErr != nil {
-			fmt.Fprintf(os.Stderr, ui.Colors.WarningStyle.Render("Warning: Cannot fetch PR status: %v\n"), *clientErr)
+			fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("Warning: Cannot fetch PR status: %v\n"), *clientErr)
 		}
 	}
 
@@ -176,7 +199,7 @@ func getPrStatusDisplay(ctx context.Context, ghClient **gh.Client, clientErr *er
 	semanticStatus, _, errGetStatus := (*ghClient).GetPullRequestStatus(prNumber) // Dereference pointer
 	if errGetStatus != nil {
 		// API error occurred during fetch
-		fmt.Fprintf(os.Stderr, ui.Colors.WarningStyle.Render("  Warning: Could not fetch PR #%d for '%s': %v\n"), prNumber, branchName, errGetStatus)
+		fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("  Warning: Could not fetch PR #%d for '%s': %v\n"), prNumber, branchName, errGetStatus)
 		statusText := fmt.Sprintf("(PR #%d: API Error)", prNumber)
 		return statusResult{statusText, func(s string) string { return ui.Colors.FailureStyle.Render(s) }}
 	}

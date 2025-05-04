@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -12,6 +13,13 @@ import (
 
 // Flag variables
 var createMessage string
+
+// --- ADD TESTING FLAGS ---
+var (
+	testBranchName      string // Bypass branch name prompt
+	testStageChoice     string // Bypass stage choice prompt ("add-all", "add-p", "cancel")
+	testAddPResultEmpty bool   // Simulate 'git add -p' staging nothing
+)
 
 var createCmd = &cobra.Command{
 	Use:   "create [branch-name]",
@@ -67,7 +75,10 @@ If there are uncommitted changes in the working directory:
 
 		// 3. Determine new branch name
 		newBranchName := ""
-		if len(args) > 0 {
+		if testBranchName != "" { // Check test flag first
+			slog.Debug("Using branch name from test flag", "testBranchName", testBranchName)
+			newBranchName = testBranchName
+		} else if len(args) > 0 {
 			newBranchName = args[0]
 		} else {
 			prompt := &survey.Input{Message: "Enter name for the new branch:"}
@@ -112,7 +123,7 @@ If there are uncommitted changes in the working directory:
 
 		// --- Action Sequence ---
 
-		fmt.Printf("Creating branch '%s' from '%s'...\n", newBranchName, parentBranch)
+		slog.Debug("Creating branch '%s' from '%s'...\n", newBranchName, parentBranch)
 		// 1. Create branch
 		if err := gitutils.CreateBranch(newBranchName, parentCommit); err != nil {
 			return fmt.Errorf("failed to create branch '%s': %w", newBranchName, err)
@@ -130,7 +141,7 @@ If there are uncommitted changes in the working directory:
 		}()
 
 		// 2. Checkout new branch
-		fmt.Printf("Checking out '%s'...\n", newBranchName)
+		slog.Debug("Checking out", "newBranchName", newBranchName)
 		if err := gitutils.CheckoutBranch(newBranchName); err != nil {
 			return fmt.Errorf("failed to checkout new branch '%s': %w", newBranchName, err)
 		}
@@ -139,48 +150,57 @@ If there are uncommitted changes in the working directory:
 		commitOccurred := false // Track if we actually commit
 		if commitMsg != "" {    // commitMsg will only be non-empty if hasChanges was true
 			stageChoice := ""
-			prompt := &survey.Select{
-				Message: "You have uncommitted changes. How would you like to stage them?",
-				Options: []string{
-					"Stage all changes (`git add .`)",
-					"Stage interactively (`git add -p`)",
-					"Cancel",
-				},
-				Default: "Stage all changes (`git add .`)",
-			}
-			err := survey.AskOne(prompt, &stageChoice, survey.WithStdio(os.Stdin, os.Stderr, os.Stderr))
-			if err != nil {
-				return handleSurveyInterrupt(err, "Create cancelled.")
+			if testStageChoice != "" {
+				slog.Debug("Using stage choice from test flag", "testStageChoice", testStageChoice)
+				stageChoice = testStageChoice
+			} else {
+				prompt := &survey.Select{
+					Message: "You have uncommitted changes. How would you like to stage them?",
+					Options: []string{
+						"Stage all changes (`git add .`)",
+						"Stage interactively (`git add -p`)",
+						"Cancel",
+					},
+					Default: "Stage all changes (`git add .`)",
+				}
+				err := survey.AskOne(prompt, &stageChoice, survey.WithStdio(os.Stdin, os.Stderr, os.Stderr))
+				if err != nil {
+					return handleSurveyInterrupt(err, "Create cancelled.")
+				}
 			}
 
 			stagedSomething := false
 			switch stageChoice {
-			case "Stage all changes (`git add .`)":
-				fmt.Println("Staging all changes...")
+			case "Stage all changes (`git add .`)", "add-all":
+				slog.Debug("Staging all changes...")
 				if err := gitutils.StageAllChanges(); err != nil {
 					return fmt.Errorf("failed to stage all changes: %w", err)
 				}
 				stagedSomething = true // Assume git add . stages something if there were changes initially
-			case "Stage interactively (`git add -p`)":
-				fmt.Println("Starting interactive staging (`git add -p`)...")
-				// RunInteractive will directly connect to terminal
-				if err := gitutils.StageInteractively(); err != nil {
-					// Error during interactive add usually means user aborted or git had issues
-					return fmt.Errorf("interactive staging failed: %w", err)
+			case "Stage interactively (`git add -p`)", "add-p":
+				if testAddPResultEmpty {
+					// Simulate user running add -p but staging nothing
+					slog.Debug("Simulating 'git add -p' with no changes staged (via test flag)")
+					stagedSomething = false
+				} else {
+					slog.Info("Starting interactive staging (`git add -p`)...")
+					slog.Debug("Calling gitutils.StageInteractively")
+					if err := gitutils.StageInteractively(); err != nil {
+						return fmt.Errorf("interactive staging failed: %w", err)
+					}
+					slog.Debug("Interactive staging finished, checking if changes were staged")
+					haveStaged, errCheck := gitutils.HasStagedChanges()
+					if errCheck != nil {
+						return fmt.Errorf("failed to check staged changes after interactive add: %w", errCheck)
+					}
+					if !haveStaged {
+						slog.Warn("No changes were staged during interactive add.")
+					}
+					stagedSomething = haveStaged
 				}
-				// After interactive add, check if anything was actually staged
-				haveStaged, errCheck := gitutils.HasStagedChanges()
-				if errCheck != nil {
-					return fmt.Errorf("failed to check for staged changes after interactive add: %w", errCheck)
-				}
-				if !haveStaged {
-					fmt.Println(ui.Colors.WarningStyle.Render("No changes were staged during interactive add."))
-				}
-				stagedSomething = haveStaged
-			case "Cancel":
-				fmt.Println("Operation cancelled during staging.")
-				// Let cleanup defer handle deleting the branch
-				return nil // Clean exit, but branch gets deleted by defer
+			case "Cancel", "cancel":
+				slog.Debug("Operation cancelled during staging.")
+				return nil // Let defer cleanup
 			default:
 				return fmt.Errorf("internal error: unexpected staging choice")
 			}
@@ -194,7 +214,7 @@ If there are uncommitted changes in the working directory:
 				}
 
 				if haveStaged {
-					fmt.Printf("Committing staged changes with message: \"%s\"...\n", commitMsg)
+					slog.Debug("Committing staged changes", "message", commitMsg)
 					if err := gitutils.CommitChanges(commitMsg); err != nil {
 						fmt.Fprint(os.Stderr, ui.Colors.FailureStyle.Render("Commit failed (hooks?). Aborting.\n"))
 						return fmt.Errorf("failed to commit changes: %w", err)
@@ -210,7 +230,7 @@ If there are uncommitted changes in the working directory:
 		} // End of commitMsg != "" block
 
 		// 4. Update metadata
-		fmt.Println("Updating socle tracking information...")
+		slog.Debug("Updating socle tracking information...")
 		newParentKey := fmt.Sprintf("branch.%s.socle-parent", newBranchName)
 		newBaseKey := fmt.Sprintf("branch.%s.socle-base", newBranchName)
 
@@ -239,6 +259,12 @@ If there are uncommitted changes in the working directory:
 func init() {
 	AddCommand(createCmd)
 	createCmd.Flags().StringVarP(&createMessage, "message", "m", "", "Commit message to use for uncommitted changes")
+	createCmd.Flags().StringVar(&testBranchName, "test-branch-name", "", "Branch name to use (testing only)")
+	createCmd.Flags().StringVar(&testStageChoice, "test-stage-choice", "", "Staging choice [add-all|add-p|cancel] (testing only)")
+	createCmd.Flags().BoolVar(&testAddPResultEmpty, "test-addp-empty", false, "Simulate 'git add -p' staging nothing (testing only)")
+	_ = createCmd.Flags().MarkHidden("test-branch-name")
+	_ = createCmd.Flags().MarkHidden("test-stage-choice")
+	_ = createCmd.Flags().MarkHidden("test-addp-empty")
 }
 
 // Helper function to handle survey interrupt (Ctrl+C) gracefully

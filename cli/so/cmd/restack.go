@@ -1,9 +1,9 @@
-// cli/so/cmd/restack.go
 package cmd
 
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -75,7 +75,7 @@ Process:
 			if !gitutils.IsRebaseInProgress() {
 				currentBranchAfter, _ := gitutils.GetCurrentBranch()
 				if currentBranchAfter != originalBranch {
-					fmt.Printf("\nChecking out original branch '%s'...\n", originalBranch)
+					slog.Debug("Checking out original branch", "name", originalBranch)
 					errCheckout := gitutils.CheckoutBranch(originalBranch)
 					if errCheckout != nil {
 						fmt.Fprintf(os.Stderr, ui.Colors.WarningStyle.Render("Warning: Failed to checkout original branch '%s': %v\n"), originalBranch, errCheckout)
@@ -91,7 +91,7 @@ Process:
 			_, errRemote := gitutils.GetRemoteURL(remoteName)
 			if errRemote != nil {
 				if strings.Contains(errRemote.Error(), "not found") {
-					fmt.Printf("Remote '%s' not found. Skipping fetch.\n", remoteName)
+					slog.Debug("Remote not found. Skipping fetch.", "remoteName", remoteName)
 					shouldFetch = false
 				} else {
 					return fmt.Errorf("failed to check remote '%s': %w", remoteName, errRemote)
@@ -99,25 +99,25 @@ Process:
 			}
 		}
 		if shouldFetch {
-			fmt.Printf("Fetching latest '%s' from %s...\n", baseBranch, remoteName)
+			slog.Debug("Fetching latest", "baseBranch", baseBranch, "remoteName", remoteName)
 			// Pass remote name to FetchBranch if it needs it
 			if err := gitutils.FetchBranch(baseBranch, remoteName); err != nil {
 				return fmt.Errorf("failed to fetch base branch '%s': %w.\nUse --no-fetch to skip.", baseBranch, err)
 			}
 			fmt.Println(ui.Colors.SuccessStyle.Render("Fetch complete."))
 		} else if restackNoFetch {
-			fmt.Println("Skipping fetch (--no-fetch).")
+			slog.Debug("Skipping fetch (--no-fetch).")
 		}
 
 		// --- Iterative Rebase Loop ---
-		fmt.Println("\n--- Starting Stack Rebase ---")
+		slog.Debug("\n--- Starting Stack Rebase ---")
 		rebasedBranches := []string{} // Keep track of branches we actually rebased/checked
 
 		for i := 1; i < len(stack); i++ {
 			branch := stack[i]
 			parent := stack[i-1]
 
-			fmt.Printf("\n[%d/%d] Processing branch: %s (parent: %s)\n", i, len(stack)-1, ui.Colors.UserInputStyle.Render(branch), ui.Colors.UserInputStyle.Render(parent))
+			slog.Debug("Processing branch", "branch", i, "parent", len(stack)-1)
 
 			// Get current OIDs
 			parentOID, errPO := gitutils.GetCurrentBranchCommit(parent)
@@ -132,22 +132,22 @@ Process:
 				// Warn and proceed with rebase attempt.
 				fmt.Println(ui.Colors.WarningStyle.Render(fmt.Sprintf("  Warning: Could not find merge base between '%s' and '%s': %v. Attempting rebase anyway.", parent, branch, errMB)))
 			} else if mergeBase == parentOID {
-				fmt.Println(ui.Colors.InfoStyle.Render(fmt.Sprintf("  Branch '%s' is already based on current '%s'. Skipping rebase.", branch, parent)))
+				slog.Debug("Branch is already based on current. Skipping rebase.", "branch", branch, "parent", parent)
 				rebasedBranches = append(rebasedBranches, branch) // Add to list even if skipped, as it's confirmed correct
 				continue                                          // Skip to next branch
 			}
 
 			// Checkout and Rebase
-			fmt.Printf("  Checking out '%s'...\n", branch)
+			slog.Debug("Checking out", "branch", branch)
 			if err := gitutils.CheckoutBranch(branch); err != nil {
 				return fmt.Errorf("failed to checkout branch '%s' for rebase: %w", branch, err)
 			}
 
-			fmt.Printf("  Rebasing onto '%s' (%s)...\n", parent, parentOID[:7])
+			slog.Debug("Rebasing", "branch", parent, "onto", parentOID[:7])
 			err = gitutils.RebaseCurrentBranchOnto(parentOID) // Rebase onto specific parent commit OID
 
 			if err == nil {
-				fmt.Println(ui.Colors.SuccessStyle.Render("  Rebase step successful."))
+				slog.Debug("Rebase step successful.")
 				rebasedBranches = append(rebasedBranches, branch) // Track success
 				continue                                          // Success, move to next branch
 			}
@@ -192,10 +192,10 @@ Process:
 		doPush := false
 		if restackForcePush {
 			doPush = true
-			fmt.Println("Force pushing specified via --force-push flag.")
+			slog.Debug("Force pushing specified via --force-push flag.")
 		} else if restackNoPush {
 			doPush = false
-			fmt.Println("Pushing disabled via --no-push flag.")
+			slog.Debug("Pushing disabled via --no-push flag.")
 		} else {
 			// Prompt user if flags don't decide
 			confirmPush := false
@@ -212,7 +212,7 @@ Process:
 
 		// Execute push if needed
 		if doPush && len(rebasedBranches) > 0 {
-			fmt.Printf("\n--- Force Pushing Updated Branches to '%s' ---\n", remoteName)
+			slog.Debug("Force Pushing Updated Branches", "remoteName", remoteName)
 			pushSuccessCount := 0
 			for _, branch := range rebasedBranches {
 				fmt.Printf("Pushing %s... ", branch)
@@ -227,11 +227,11 @@ Process:
 					pushSuccessCount++
 				}
 			}
-			fmt.Printf("Finished pushing %d branches.\n", pushSuccessCount)
+			slog.Debug("Finished pushing branches.")
 		} else if len(rebasedBranches) == 0 {
-			fmt.Println("No branches were identified as needing rebase or push.")
+			slog.Debug("No branches were identified as needing rebase or push.")
 		} else {
-			fmt.Println("Skipping push.")
+			slog.Debug("Skipping push.")
 		}
 
 		return nil // Overall success

@@ -5,6 +5,7 @@ import (
 	"context" // Need context for GitHub client
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -44,6 +45,9 @@ and creates or updates corresponding GitHub Pull Requests.
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background() // Base context for API calls
+		// Get the output/error streams from the command
+		outW := cmd.OutOrStdout()
+		errW := cmd.ErrOrStderr()
 
 		// Check if git push/fetch remote exists (e.g., 'origin')
 		remoteName := "origin" // TODO: Make configurable?
@@ -61,16 +65,22 @@ and creates or updates corresponding GitHub Pull Requests.
 		if err != nil {
 			return fmt.Errorf("failed to create GitHub client: %w", err)
 		}
-		fmt.Printf("Operating on repository: %s/%s\n", owner, repoName)
+		slog.Debug("Operating on repository:", "owner", owner, "repoName", repoName)
 
 		// --- Get Stack Info ---
 		currentBranch, currentStack, _, err := getCurrentStackInfo()
-		if err != nil {
-			return handleShowStartupError(err, currentBranch)
-		} // Pass currentBranch hint
+		handled, processedErr := handleShowStartupError(err, currentBranch, outW, errW)
+		if processedErr != nil {
+			// Handle unexpected errors from getCurrentStackInfo or the handler itself
+			return processedErr // Return actual error
+		}
+		if handled {
+			// If the handler dealt with it (printed "on base" or "untracked"), exit successfully.
+			return nil
+		}
 
 		// --- Determine Full Stack ---
-		fmt.Println("Determining full stack...")
+		slog.Debug("Determining full stack...")
 		allParents, err := gitutils.GetAllSocleParents()
 		if err != nil {
 			return fmt.Errorf("failed to read all tracking relationships: %w", err)
@@ -96,7 +106,7 @@ and creates or updates corresponding GitHub Pull Requests.
 				processedDescendants[desc] = true
 			}
 		}
-		fmt.Printf("Full stack identified for processing: %v\n", fullStack)
+		slog.Debug("Full stack identified for processing:", "fullStack", fullStack)
 		// --- End Determine Full Stack ---
 		if len(fullStack) <= 1 {
 			fmt.Println("Current branch is the base or directly on base. Nothing to submit.")
@@ -116,21 +126,19 @@ and creates or updates corresponding GitHub Pull Requests.
 				continue
 			}
 
-			fmt.Printf("\nProcessing branch: %s (parent: %s)\n",
-				ui.Colors.UserInputStyle.Render(branch),
-				ui.Colors.UserInputStyle.Render(parent))
+			slog.Debug("Processing", "branch", branch, "parent", parent)
 
 			// 3a. Push Branch (unless skipped)
 			if !submitNoPush {
-				fmt.Printf("Pushing branch '%s' to '%s'...\n", branch, remoteName)
+				slog.Debug("Pushing branch", "branch", branch, "remote", remoteName)
 				err := gitutils.PushBranch(branch, remoteName, submitForcePush)
 				if err != nil {
 					// Allow continuing? Or stop? Let's stop for now.
 					return fmt.Errorf("failed to push branch '%s', aborting submit: %w", branch, err)
 				}
-				fmt.Println(ui.Colors.SuccessStyle.Render("Push successful."))
+				slog.Debug("Push successful.")
 			} else {
-				fmt.Println("Skipping push (--no-push).")
+				slog.Debug("Skipping push (--no-push).")
 			}
 
 			// 3b. Check for existing PR via stored number
@@ -186,7 +194,7 @@ and creates or updates corresponding GitHub Pull Requests.
 					currentPrNumberStr := fmt.Sprintf("%d", currentPR.GetNumber()) // Use number from fetched/updated PR
 
 					if currentPrNumberStr != prNumberStr { // Only write if missing or different
-						fmt.Printf("Updating stored PR number %s for branch '%s'...\n", currentPrNumberStr, branch)
+						slog.Debug("Updating stored PR number", "currentPrNumberStr", currentPrNumberStr, "branch", branch)
 						errSet := gitutils.SetGitConfig(prNumberKey, currentPrNumberStr)
 						if errSet != nil {
 							fmt.Fprintf(os.Stderr, ui.Colors.FailureStyle.Render("CRITICAL WARNING: Failed to store PR number %d locally for branch '%s': %v\n"), currentPR.GetNumber(), branch, errSet)
@@ -200,7 +208,7 @@ and creates or updates corresponding GitHub Pull Requests.
 			// If we reach here, we need to create a new PR
 			if prNumber == 0 {
 				// --- Create New PR ---
-				fmt.Printf("Attempting to create PR for branch '%s' -> '%s'...\n", branch, parent)
+				slog.Debug("Attempting to create PR", "branch", branch, "parent", parent)
 
 				// --- Check for Diff First ---
 				hasDiff, errDiff := gitutils.HasDiff(parent, branch)
@@ -221,7 +229,7 @@ and creates or updates corresponding GitHub Pull Requests.
 					continue        // Skip to the next branch in the stack
 				}
 				// --- Proceed only if diff exists ---
-				fmt.Println("  Differences found. Proceeding with PR creation details...")
+				slog.Debug("  Differences found. Proceeding with PR creation details...")
 
 				// --- Get title ---
 				// Attempt to get the first commit subject for the default title
@@ -293,7 +301,7 @@ and creates or updates corresponding GitHub Pull Requests.
 
 				// Create PR call
 				isDraft := submitDraft // Use flag value
-				fmt.Printf("Submitting as %s PR...\n", map[bool]string{true: "Draft", false: "Ready"}[isDraft])
+				slog.Debug("Submitting PR", "as type", map[bool]string{true: "Draft", false: "Ready"}[isDraft])
 				newPR, err := ghClient.CreatePullRequest(branch, parent, title, body, isDraft)
 				if err != nil {
 					// Abort on failure to create
@@ -303,7 +311,7 @@ and creates or updates corresponding GitHub Pull Requests.
 
 				// Store the new PR number
 				newPrNumberStr := fmt.Sprintf("%d", newPR.GetNumber())
-				fmt.Printf("Storing PR number %s for branch '%s'...\n", newPrNumberStr, branch)
+				slog.Debug("Storing PR number for branch", "newPrNumberStr", newPrNumberStr, "branch", branch)
 				err = gitutils.SetGitConfig(prNumberKey, newPrNumberStr)
 				if err != nil {
 					// Don't fail the whole process, but warn heavily
@@ -323,21 +331,20 @@ and creates or updates corresponding GitHub Pull Requests.
 					URL:    currentPR.GetHTMLURL(),
 					Title:  currentPR.GetTitle(),
 				}
-				// fmt.Printf("DEBUG: Stored PR info for %s: %+v\\n", branch, prInfoMap[branch]) // Optional Debug
+				slog.Debug("Stored PR info", "branch", branch, "prInfoMap", prInfoMap[branch])
 			} else {
-				// fmt.Printf("DEBUG: No valid PR object for %s after processing (skipped or failed).\\n\", branch) // Optional Debug
+				slog.Debug("DEBUG: No valid PR object after processing (skipped or failed).", "branch", branch)
 			}
 
-		} // End of first loop
+		}
 
-		// --- Debug before second loop ---
-		fmt.Printf("DEBUG: prInfoMap contains %d entries before comment phase.\n", len(prInfoMap))
+		slog.Debug("Before comment phase", "prInfoMap entries", len(prInfoMap))
 		for branch, info := range prInfoMap {
-			fmt.Printf("DEBUG: Map entry - branch: %s, PR #%d, URL: %s\n", branch, info.Number, info.URL)
+			slog.Debug("Map entry", "branch", branch, "PR number", info.Number, "URL", info.URL)
 		}
 
 		// --- Second Loop: Add/Update Stack Comments ---
-		fmt.Println("\n--- Phase 2: Updating PR comments with stack overview ---")
+		slog.Debug("\n--- Phase 2: Updating PR comments with stack overview ---")
 		stackCommentMarker := "<!-- socle-stack-overview -->"
 
 		if len(prInfoMap) == 0 {
@@ -351,11 +358,9 @@ and creates or updates corresponding GitHub Pull Requests.
 					continue
 				}
 				// If we reach here, we *do* have PR info for this branch
-				fmt.Printf("Processing comment for branch %s, PR #%d...\n", branch, prInfo.Number)
+				slog.Debug("Processing comment", "branch", branch, "PR number", prInfo.Number)
 
 				commentBody := renderStackCommentBody(fullStack, branch, prInfoMap)
-				fmt.Printf("  Generated comment body (length %d)\n", len(commentBody)) // DEBUG
-
 				// Get existing comment ID
 				commentIDKey := fmt.Sprintf("branch.%s.socle-comment-id", branch)
 				commentIDStr, errGetID := gitutils.GetGitConfig(commentIDKey)
@@ -379,7 +384,7 @@ and creates or updates corresponding GitHub Pull Requests.
 
 				// If local ID wasn't found/valid, try searching GitHub using marker
 				if commentID == 0 && !configReadError {
-					fmt.Println("  No valid local comment ID found. Searching GitHub for marker comment...")
+					slog.Debug("No valid local comment ID found. Searching GitHub for marker comment ...")
 					foundID, errFind := ghClient.FindCommentWithMarker(prInfo.Number, stackCommentMarker)
 					if errFind != nil {
 						// Error calling the API to find the comment
@@ -391,17 +396,17 @@ and creates or updates corresponding GitHub Pull Requests.
 						// Optionally store this back to local config for next time?
 						// errSet := gitutils.SetGitConfig(commentIDKey, fmt.Sprintf("%d", commentID)) ... handle error ...
 					} else {
-						fmt.Println("  No existing marker comment found on GitHub.")
+						slog.Debug("No existing marker comment found on GitHub.")
 					}
 				}
 
-				var resultingComment *github.IssueComment // Use GH type
+				var resultingComment *github.IssueComment
 				var commentErr error
-				actionTaken := "" // For logging
+				actionTaken := ""
 
 				if commentID > 0 {
 					// Try Update
-					fmt.Printf("  Attempting to update comment ID %d...\n", commentID) // DEBUG
+					slog.Debug("Attempting to update comment", "commentID", commentID)
 					resultingComment, commentErr = ghClient.UpdateComment(commentID, commentBody)
 					if commentErr != nil {
 						fmt.Fprintf(os.Stderr, ui.Colors.WarningStyle.Render("  Warning: Failed to update comment ID %d: %v\n"), commentID, commentErr) // DEBUG
@@ -427,12 +432,11 @@ and creates or updates corresponding GitHub Pull Requests.
 					fmt.Fprintf(os.Stderr, ui.Colors.FailureStyle.Render("  ERROR: Failed to %s stack comment for PR #%d: %v\n"), map[bool]string{true: "update", false: "create"}[commentID > 0], prInfo.Number, commentErr)
 					// Continue to next PR
 				} else if actionTaken != "" {
-					fmt.Printf("  Stack comment %s successfully.\n", actionTaken)
-					// Store the new/updated comment ID if we have one
+					slog.Debug("Stack comment", "actionTaken", actionTaken)
 					if resultingComment != nil && resultingComment.ID != nil {
 						newCommentIDStr := fmt.Sprintf("%d", resultingComment.GetID())
 						if newCommentIDStr != commentIDStr {
-							fmt.Printf("  Storing new comment ID %s for branch '%s'...\n", newCommentIDStr, branch)
+							slog.Debug("Storing new comment ID", "newCommentIDStr", newCommentIDStr, "branch", branch)
 							errSet := gitutils.SetGitConfig(commentIDKey, newCommentIDStr)
 							if errSet != nil {
 								fmt.Fprintf(os.Stderr, ui.Colors.FailureStyle.Render("  CRITICAL WARNING: Failed to store comment ID %s locally for branch '%s': %v\n"), newCommentIDStr, branch, errSet)
@@ -440,13 +444,13 @@ and creates or updates corresponding GitHub Pull Requests.
 						}
 					}
 				} else {
-					fmt.Println("  No comment action was successfully completed for this PR.") // Should not happen?
+					slog.Debug("No comment action was successfully completed for this PR.")
 				}
-			} // End of second loop
-		} // End else
-		fmt.Println("\nSubmit process complete.")
+			}
+		}
+		slog.Debug("Submit process complete.")
 		return nil
-	}, // Close the RunE function
+	},
 }
 
 // renderStackCommentBody generates the markdown comment.
@@ -491,6 +495,5 @@ func init() {
 	AddCommand(submitCmd)
 	submitCmd.Flags().BoolVar(&submitForcePush, "force", false, "Force push branches ('git push --force')")
 	submitCmd.Flags().BoolVar(&submitNoPush, "no-push", false, "Skip pushing branches to the remote")
-	// Default is true, flag makes it false. Use `BoolVar` and maybe check `cmd.Flags().Changed("draft")` if needed later.
 	submitCmd.Flags().BoolVar(&submitDraft, "draft", true, "Create new pull requests as drafts")
 }

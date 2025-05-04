@@ -3,13 +3,18 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
-	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/benekuehn/socle/cli/so/gitutils"
 	"github.com/benekuehn/socle/cli/so/internal/ui"
 	"github.com/spf13/cobra"
+)
+
+var (
+	testSelectedParent string // Flag to bypass parent prompt in tests
+	testAssumeBase     string // Flag to bypass base determination/warning in tests
 )
 
 var trackCmd = &cobra.Command{
@@ -67,19 +72,29 @@ within a stack. This allows 'socle show' to display the specific stack you are o
 
 		// 4. Prompt user to select parent
 		selectedParent := ""
-		prompt := &survey.Select{
-			Message: fmt.Sprintf("Select the parent branch for '%s':", currentBranch),
-			Options: potentialParents,
-			// Suggest common bases first? Could sort potentialParents here.
-		}
-		err = survey.AskOne(prompt, &selectedParent, survey.WithStdio(os.Stdin, os.Stderr, os.Stderr))
-		if err != nil {
-			// Handle potential ctrl+c from prompt etc.
-			if err.Error() == "interrupt" {
-				fmt.Println("Track command cancelled.")
-				os.Exit(0) // Clean exit on interrupt
+		if testSelectedParent != "" {
+			slog.Debug("Using parent branch from test flag", "testParent", testSelectedParent)
+			// Validate the test flag value exists as a branch
+			found := false
+			for _, p := range potentialParents {
+				if p == testSelectedParent {
+					found = true
+					break
+				}
 			}
-			return fmt.Errorf("failed to get parent selection: %w", err)
+			if !found && !knownBases[testSelectedParent] { // Allow test parent to be a known base too
+				return fmt.Errorf("invalid test parent '%s': not found in potential parents %v or known bases", testSelectedParent, potentialParents)
+			}
+			selectedParent = testSelectedParent
+		} else {
+			// User prompt (Keep survey for actual use)
+			slog.Debug("Prompting user for parent branch")
+			prompt := &survey.Select{Message: fmt.Sprintf("Select the parent branch for '%s':", currentBranch), Options: potentialParents}
+			err := survey.AskOne(prompt, &selectedParent, survey.WithStdio(os.Stdin, os.Stderr, os.Stderr))
+			if err != nil {
+				return handleSurveyInterrupt(err, "Track command cancelled.")
+			}
+			slog.Debug("Parent selected via prompt", "selectedParent", selectedParent)
 		}
 
 		// 5. Determine and store base branch
@@ -90,28 +105,27 @@ within a stack. This allows 'socle show' to display the specific stack you are o
 		} else {
 			// Parent is another feature branch, check if IT is tracked
 			parentBaseKey := fmt.Sprintf("branch.%s.socle-base", selectedParent)
-			inheritedBase, err := gitutils.GetGitConfig(parentBaseKey)
-			if err == nil && inheritedBase != "" {
+			inheritedBase, errGetBase := gitutils.GetGitConfig(parentBaseKey)
+			if errGetBase == nil && inheritedBase != "" {
 				// Parent is tracked, inherit its base
 				selectedBase = inheritedBase
-				fmt.Printf("Parent '%s' is tracked with base '%s'. Inheriting base.\n", selectedParent, selectedBase)
-			} else if err != nil && !strings.Contains(err.Error(), "exit status 1") {
-				// Handle unexpected errors from git config
-				return fmt.Errorf("failed to check tracking status for parent branch '%s': %w", selectedParent, err)
+				slog.Debug("Inheriting base from tracked parent", "base", selectedBase, "parent", selectedParent)
+			} else if errors.Is(errGetBase, gitutils.ErrConfigNotFound) {
+				// Parent is untracked. Use test flag or default/warn.
+				slog.Debug("Selected parent is not tracked", "parent", selectedParent)
+				if testAssumeBase != "" {
+					slog.Debug("Using base from test flag", "testBase", testAssumeBase)
+					selectedBase = testAssumeBase
+				} else {
+					// User feedback - keep fmt.Println for warning
+					fmt.Println(ui.Colors.WarningStyle.Render(fmt.Sprintf(
+						"Warning: Parent branch '%s' is not tracked. Assuming stack base is '%s'.", selectedParent, defaultBaseBranch))) // Use a constant/variable for default base
+					fmt.Println(ui.Colors.WarningStyle.Render("Consider tracking the parent branch first for more accurate stack definitions."))
+					selectedBase = defaultBaseBranch // Default assumption
+				}
 			} else {
-				// Parent is not a known base AND not tracked. This is ambiguous.
-				// For now, let's default to main, but ideally prompt or error.
-				// Option A: Error out
-				// return fmt.Errorf("parent branch '%s' is not a known base branch (main, develop) and is not tracked itself. Please track '%s' first", selectedParent, selectedParent)
-
-				// Option B: Default to main (less safe but simpler for now)
-				fmt.Printf("Warning: Parent branch '%s' is not tracked. Assuming stack base is 'main'.\n", selectedParent)
-				fmt.Println("Consider tracking the parent branch first for more accurate stack definitions.")
-				selectedBase = "main" // Default assumption
-
-				// Option C: Prompt explicitly (requires another survey call)
-				// basePrompt := &survey.Input{ Message: fmt.Sprintf("Parent '%s' is not tracked. What is the ultimate base branch for this stack?", selectedParent), Default: "main" }
-				// survey.AskOne(basePrompt, &selectedBase, survey.WithStdio(os.Stdin, os.Stderr, os.Stderr))
+				// Unexpected error reading parent's base config
+				return fmt.Errorf("failed to check tracking base for parent branch '%s': %w", selectedParent, errGetBase)
 			}
 		}
 
@@ -141,6 +155,12 @@ within a stack. This allows 'socle show' to display the specific stack you are o
 	},
 }
 
+const defaultBaseBranch = "main"
+
 func init() {
 	AddCommand(trackCmd)
+	trackCmd.Flags().StringVar(&testSelectedParent, "test-parent", "", "Parent branch to select (for testing only)")
+	trackCmd.Flags().StringVar(&testAssumeBase, "test-base", "", "Base branch to assume if parent is untracked (for testing only)")
+	_ = trackCmd.Flags().MarkHidden("test-parent")
+	_ = trackCmd.Flags().MarkHidden("test-base")
 }

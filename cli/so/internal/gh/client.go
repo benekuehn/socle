@@ -3,6 +3,7 @@ package gh
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -29,7 +30,7 @@ func NewClient(ctx context.Context, owner, repo string) (*Client, error) {
 
 	if token == "" {
 		// GITHUB_TOKEN not set, try fetching from 'gh' CLI
-		fmt.Println("GITHUB_TOKEN not set. Checking 'gh' CLI for authentication...")
+		slog.Debug("GITHUB_TOKEN not set. Checking 'gh' CLI for authentication...")
 
 		// Check if 'gh' command exists first
 		ghPath, errLookPath := exec.LookPath("gh")
@@ -37,7 +38,7 @@ func NewClient(ctx context.Context, owner, repo string) (*Client, error) {
 			// 'gh' CLI not found in PATH
 			return nil, fmt.Errorf("authentication failed: GITHUB_TOKEN not set and 'gh' CLI not found in PATH. Please set GITHUB_TOKEN or install and authenticate GitHub CLI ('gh auth login')")
 		}
-		fmt.Printf("Found 'gh' CLI at: %s. Attempting to fetch token...\n", ghPath)
+		slog.Debug("Found 'gh' CLI. Attempting to fetch token...", "ghPath", ghPath)
 
 		ghToken, err := gitutils.RunExternalCommand("gh", "auth", "token")
 		if err != nil {
@@ -50,13 +51,13 @@ func NewClient(ctx context.Context, owner, repo string) (*Client, error) {
 			// gh command ran but returned empty token
 			return nil, fmt.Errorf("authentication failed: GITHUB_TOKEN not set and 'gh auth token' returned empty. Please run 'gh auth login' or set GITHUB_TOKEN")
 		}
-		fmt.Println("Successfully retrieved token using 'gh auth token'.")
+		slog.Debug("Successfully retrieved token using 'gh auth token'.")
 		token = strings.TrimSpace(ghToken) // Use the token from gh
 		ghUsed = true
 	}
 
 	if !ghUsed {
-		fmt.Println("Using GITHUB_TOKEN for authentication.")
+		slog.Debug("Using GITHUB_TOKEN for authentication.")
 	}
 
 	// Use the determined token (either from ENV or gh)
