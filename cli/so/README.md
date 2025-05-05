@@ -265,10 +265,10 @@ so track [flags]
 ---
 
 ### so up
-Navigates one level up the stack towards the base branch.
+Navigates one level up the stack towards the tip.
 
 The stack is determined by the tracking information set via 'so track'.
-This command finds the immediate parent of the current branch.
+This command finds the immediate descendent of the current branch.
 
 ```
 so up [flags]

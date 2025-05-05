@@ -8,11 +8,11 @@ import (
 
 var upCmd = &cobra.Command{
 	Use:   "up",
-	Short: "Checkout the parent branch of the current branch in the stack",
-	Long: `Navigates one level up the stack towards the base branch.
+	Short: "Switch to the child of the current branch.",
+	Long: `Navigates one level up the stack towards the tip.
 
 The stack is determined by the tracking information set via 'so track'.
-This command finds the immediate parent of the current branch.`,
+This command finds the immediate descendent of the current branch.`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger := slog.Default()
@@ -29,5 +29,4 @@ This command finds the immediate parent of the current branch.`,
 
 func init() {
 	AddCommand(upCmd)
-	// No flags needed for this command yet
 }

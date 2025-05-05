@@ -8,7 +8,7 @@ import (
 
 var downCmd = &cobra.Command{
 	Use:   "down",
-	Short: "Checkout the parent branch of the current branch in the stack",
+	Short: "Switch to the parent of the current branch.",
 	Long: `Navigates one level down the stack towards the base branch.
 
 The stack is determined by the tracking information set via 'so track'.
@@ -29,5 +29,4 @@ This command finds the immediate parent of the current branch.`,
 
 func init() {
 	AddCommand(downCmd)
-	// No flags needed for this command yet
 }

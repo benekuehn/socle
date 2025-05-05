@@ -8,7 +8,7 @@ import (
 
 var bottomCmd = &cobra.Command{
 	Use:   "bottom",
-	Short: "Checkout the bottom-most branch (above base) of the current stack",
+	Short: "Switch to the bottom-most branch (above base) of the current stack",
 	Long: `Navigates to the first branch stacked directly on top of the base branch.
 
 The stack is determined by the tracking information set via 'so track'.
@@ -29,5 +29,4 @@ This command finds the first branch after the base in the sequence leading to th
 
 func init() {
 	AddCommand(bottomCmd)
-	// No flags needed for this command yet
 }

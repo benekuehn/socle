@@ -3,13 +3,12 @@ package cmd
 import (
 	"log/slog"
 
-	// Assuming ui package for output styling
 	"github.com/spf13/cobra"
 )
 
 var topCmd = &cobra.Command{
 	Use:   "top",
-	Short: "Checkout the top-most branch of the current stack",
+	Short: "Switch to tip of the current stack",
 	Long: `Navigates to the highest branch in the current stack.
 
 The stack is determined by the tracking information set via 'so track'.
