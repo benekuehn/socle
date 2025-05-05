@@ -57,5 +57,12 @@ docs:
 # Run common checks (Example 'all' target)
 all: fmt lint-fix test
 
+# Development build - installs so-dev globally
+dev-install: all
+	@echo "Installing dev build..."
+	go build -o $(shell go env GOPATH)/bin/so-dev ./
+	@echo "Installed so-dev to $(shell go env GOPATH)/bin"
+	@echo "You can now run 'so-dev' from anywhere"
+
 # Declare targets that are not files
-.PHONY: default build test fmt lint lint-fix install clean docs all 
+.PHONY: default build dev-install test fmt lint lint-fix install clean docs all
