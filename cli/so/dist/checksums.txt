@@ -1,0 +1,2 @@
+fd6ea1d2b37ffed7ba2dd456a61d641cec7775bc7fc5531a5d4766bd8809dd09  socle_0.1.0-alpha.1_darwin_amd64.tar.gz
+b7bbe97a96f3ffffa53d584c2ab6b7555944f539990072156fe1b1a916ef066d  socle_0.1.0-alpha.1_darwin_arm64.tar.gz
