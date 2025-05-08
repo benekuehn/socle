@@ -1,6 +1,7 @@
 "use client"
 import { motion } from "framer-motion"
 import { BrewButton } from "./BrewButton"
+import { LinkOutButton } from "./LinkOutButton"
 
 
 export default function HeroSection() {
@@ -28,12 +29,9 @@ export default function HeroSection() {
           transition={{ duration: 0.6, delay: 0.15 }}>
           <BrewButton />
           <span>or</span>
-          <a
-            href="https://github.com/benekuehn/socle"
-            className="rounded-lg border border-zinc-800 px-6 py-3 text-sm font-medium text-zinc-100 hover:bg-zinc-900 hover:border-zinc-900 transition-colors"
-          >
+          <LinkOutButton href="https://github.com/benekuehn/socle">
             View on GitHub
-          </a>
+          </LinkOutButton>
         </motion.div>
       </div>
     </section>

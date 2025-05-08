@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useRef, useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useTerminalAnimation } from '@/hooks/useTerminalAnimation';
 import { StaticTerminalOutput } from './StaticTerminalOutput';
 import { SoLogOutput } from './SoLogOutput';
@@ -24,6 +24,7 @@ export const TerminalDemo: React.FC = () => {
     isPlaying,
     handlePlayPause,
     prefersReducedMotion,
+    currentCommand,
   } = useTerminalAnimation();
 
   // Set terminal height only once on mount
@@ -35,22 +36,46 @@ export const TerminalDemo: React.FC = () => {
     }
   }, [terminalHeight]);
 
+  // Determine explanation based on currentCommand
+  let commandExplanation = '';
+  if (currentCommand === 'so restack') {
+    commandExplanation = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.';
+  } else {
+    commandExplanation = 'Shows the sequence of tracked branches in your stack';
+  }
+
   return (
-    <motion.div className="w-full max-w-4xl mx-auto" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.4 }}>
+    <motion.div className="w-full max-w-4xl mx-auto px-4 sm:px-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.4 }}>
       <div className="text-center mb-6">
-        <div className="inline-flex items-center px-4 py-2 bg-zinc-900/50 border border-zinc-800 rounded-full min-h-[2.5rem]">
-          <span className="font-mono text-green-400">$ {typedCommand}</span>
+        <div className="inline-flex items-center px-4 py-2 gap-2">
+          <span>$</span><span className="font-mono text-zinc-100">{typedCommand}</span>
         </div>
-        <p className="mt-2 text-zinc-400 text-sm">Shows the sequence of tracked branches in your stack</p>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.p
+            key={currentCommand}
+            className="mt-2 text-zinc-400 text-sm"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.18 }}
+          >
+            {commandExplanation}
+          </motion.p>
+        </AnimatePresence>
       </div>
       <div className="relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-zinc-900/20 to-zinc-800/20 rounded-xl blur-3xl opacity-30"></div>
         <div
           ref={terminalRef}
-          className="relative bg-[#0A0A0A] border border-zinc-800 rounded-xl overflow-hidden shadow-2xl"
-          style={terminalHeight ? { height: terminalHeight, maxHeight: MAX_HEIGHT, minHeight: MIN_HEIGHT } : { maxHeight: MAX_HEIGHT, minHeight: MIN_HEIGHT }}
+          data-terminal-demo
+          className="relative rounded-xl overflow-hidden"
+          style={{
+            ...(terminalHeight ? { height: terminalHeight, maxHeight: MAX_HEIGHT, minHeight: MIN_HEIGHT } : { maxHeight: MAX_HEIGHT, minHeight: MIN_HEIGHT }),
+            border: '2px solid transparent',
+            borderRadius: '1rem',
+            background: `linear-gradient(#0A0A0A, #0A0A0A) padding-box, radial-gradient(ellipse 80% 40% at 50% 0%, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.04) 60%, rgba(0,0,0,0) 100%) border-box`
+          }}
         >
-          <div className="p-1 bg-[#111111]">
+          <div className="p-1 bg-zinc-950">
             <div className="flex items-center px-4 py-2" style={{ minHeight: 28 }}>
               <div className="flex space-x-2">
                 <div className="w-3 h-3 rounded-full bg-zinc-600"></div>

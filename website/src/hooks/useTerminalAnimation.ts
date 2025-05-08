@@ -237,5 +237,6 @@ export const useTerminalAnimation = () => {
         isPlaying,
         handlePlayPause,
         prefersReducedMotion,
+        currentCommand: prefersReducedMotion ? 'so log' : (animationStepRef.current === 0 ? 'so log' : 'so restack'),
     };
 };

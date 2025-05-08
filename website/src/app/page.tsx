@@ -1,5 +1,7 @@
 import HeroSection from "@/components/HeroSection";
 import { TerminalDemo } from "@/components/TerminalDemo";
+import { KeyCommandsSection } from "@/components/KeyCommandsSection";
+import { CtaSection } from "@/components/CtaSection";
 
 export default function Home() {
   return (
@@ -7,6 +9,8 @@ export default function Home() {
       <main className="flex-1">
         <HeroSection />
         <TerminalDemo />
+        <KeyCommandsSection />
+        <CtaSection />
       </main>
     </div>
   );
