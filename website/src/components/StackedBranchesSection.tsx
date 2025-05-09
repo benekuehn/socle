@@ -95,7 +95,7 @@ export function StackedBranchesSection() {
           {/* First trigger is very short, second is a bit longer, rest are normal */}
           <div
             ref={triggerRefs[0]}
-            style={{ height: `10vh` }}
+            style={{ height: `0.5vh` }}
             aria-hidden
           />
           <div
