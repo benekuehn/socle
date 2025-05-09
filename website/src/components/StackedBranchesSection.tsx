@@ -1,6 +1,7 @@
 "use client"
 
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
+import { useRef, useEffect, useState } from "react"
 
 const paragraphs = [
   {
@@ -17,48 +18,105 @@ const paragraphs = [
   }
 ]
 
+const STEP_HEIGHT = 0.7; // as fraction of viewport height
+const TOP_SPACER = 0.5; // as fraction of viewport height
+const BOTTOM_SPACER = 0.4; // as fraction of viewport height
+const BREAK = 60; // px, the break before the next paragraph takes over
+
 export function StackedBranchesSection() {
+  const triggerRefs = paragraphs.map(() => useRef<HTMLDivElement>(null));
+  const [visibleIdx, setVisibleIdx] = useState<number|null>(0);
+
+  // Calculate total height for the stepper region
+  const totalHeight = typeof window !== 'undefined'
+    ? window.innerHeight * (TOP_SPACER + STEP_HEIGHT * paragraphs.length + BOTTOM_SPACER)
+    : undefined;
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const center = window.innerHeight / 2;
+      const offsets = triggerRefs.map(ref => {
+        const rect = ref.current?.getBoundingClientRect();
+        if (!rect) return 9999;
+        return rect.top + rect.height / 2;
+      });
+      let found: number|null = null;
+      for (let i = 0; i < offsets.length; i++) {
+        const curr = offsets[i];
+        const next = offsets[i + 1] ?? Infinity;
+        // If we're in the break between two paragraphs, hide all
+        if (i < offsets.length - 1 && Math.abs(next - center) < BREAK) {
+          found = null;
+          break;
+        }
+        // If this paragraph's trigger has passed the center, and the next hasn't yet, show this paragraph
+        if (curr - center <= 0 && next - center > 0) {
+          found = i;
+          break;
+        }
+      }
+      // Special case: before the first trigger, show the first paragraph
+      if (offsets[0] - center > 0) {
+        found = 0;
+      }
+      setVisibleIdx(found);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [triggerRefs]);
+
   return (
-    <section className="relative w-full bg-zinc-950">
-      <div className="max-w-6xl mx-auto grid md:grid-cols-2 min-h-screen">
-        {/* Scrolling left column with sticky paragraphs */}
-        <div className="flex flex-col gap-0 w-full scroll-smooth snap-y snap-mandatory">
-          {/* Spacer before first paragraph */}
-          <div className="h-[50vh]" />
-          {paragraphs.map((paragraph, idx) => (
-            <section
+    <section className="relative w-full bg-zinc-950" style={totalHeight ? { height: totalHeight } : { minHeight: '100vh' }}>
+      <div className="max-w-6xl mx-auto grid md:grid-cols-2 h-full">
+        {/* Left column: sticky and centered for the whole region */}
+        <div className="h-full flex flex-col">
+          {/* Sticky, centered paragraph container */}
+          <div className="sticky top-0 h-screen flex flex-col items-center justify-center pointer-events-none z-10">
+            <AnimatePresence mode="wait">
+              {visibleIdx !== null && (
+                <motion.div
+                  key={visibleIdx}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="space-y-4 text-center pointer-events-auto"
+                >
+                  <h3 className="text-xl font-semibold text-zinc-200">{paragraphs[visibleIdx].title}</h3>
+                  <p className="text-zinc-400 max-w-md mx-auto">{paragraphs[visibleIdx].content}</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+          {/* Spacers and triggers in normal flow after sticky container */}
+          <div style={{ height: `${TOP_SPACER * 100}vh` }} />
+          {paragraphs.map((_, idx) => (
+            <div
               key={idx}
-              className="h-[70vh] relative"
-            >
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.7 }}
-                transition={{ duration: 0.6 }}
-                className="sticky top-1/2 -translate-y-1/2 space-y-4 text-center"
-              >
-                <h3 className="text-xl font-semibold text-zinc-200">{paragraph.title}</h3>
-                <p className="text-zinc-400 max-w-md mx-auto">{paragraph.content}</p>
-              </motion.div>
-            </section>
+              ref={triggerRefs[idx]}
+              style={{ height: `${STEP_HEIGHT * 100}vh` }}
+              aria-hidden
+            />
           ))}
-          {/* Spacer after last paragraph */}
-          <div className="h-[40vh]" />
+          <div style={{ height: `${BOTTOM_SPACER * 100}vh` }} />
         </div>
-        {/* Sticky right column */}
-        <div className="flex flex-col items-center justify-center sticky top-0 h-screen">
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-3xl font-bold text-center text-zinc-300 mb-10"
-          >
-            Why Stacked Branches?
-          </motion.h2>
-          <div className="relative w-64 h-96 flex items-center justify-center">
-            <div className="absolute inset-0 bg-zinc-800 rounded-lg border border-zinc-700" />
-            <div className="absolute inset-0 bg-zinc-700 rounded-lg border border-zinc-600" />
-            <div className="absolute inset-0 bg-zinc-600 rounded-lg border border-zinc-500" />
+        {/* Right column: sticky and centered for the whole region */}
+        <div className="h-full flex flex-col">
+          <div className="sticky top-0 h-screen flex flex-col items-center justify-center">
+            <motion.h2
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="text-3xl font-bold text-center text-zinc-300 mb-10"
+            >
+              Why Stacked Branches?
+            </motion.h2>
+            <div className="relative w-64 h-96 flex items-center justify-center">
+              <div className="absolute inset-0 bg-zinc-800 rounded-lg border border-zinc-700" />
+              <div className="absolute inset-0 bg-zinc-700 rounded-lg border border-zinc-600" />
+              <div className="absolute inset-0 bg-zinc-600 rounded-lg border border-zinc-500" />
+            </div>
           </div>
         </div>
       </div>
