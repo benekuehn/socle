@@ -7,10 +7,6 @@ version: 2
 
 project_name: socle
 
-# Set the Go module path if it's different from the repository name
-# go_module:
-#   path: github.com/benekuehn/socle
-
 # Environment variables used during build
 env:
   # Tells goreleaser to run CGO builds for libraries that need it
@@ -31,19 +27,13 @@ builds:
     # Go OS/Arch targets
     # Reference: https://goreleaser.com/customization/build/#building-for-different-architectures
     goos:
-      - darwin  # macOS
+      - darwin
     goarch:
       - amd64
-      - arm64 # For Apple Silicon and ARM servers
-    # Inject version information
-    # Path is relative to the main package defined above
+      - arm64
     ldflags:
-      - -s -w # Strip debug info and symbols to reduce binary size
-      # Path is still correct as it's the Go import path
+      - -s -w
       - -X github.com/benekuehn/socle/cli/so/cmd.version={{ .Version }}
-      # Optionally add commit hash and build date
-      # - -X main.commit={{ .Commit }}
-      # - -X main.date={{ .Date }}
 
 # Archive configuration (creates .tar.gz and .zip)
 archives:
@@ -54,10 +44,9 @@ archives:
     # Archive name template
     # Reference: https://goreleaser.com/customization/archive/
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    # Add useful files like README, LICENSE (paths relative to project root)
     files:
-      - LICENSE      # <-- Path relative to project root
-      - README.md    # <-- Path relative to project root
+      - LICENSE
+      - README.md
 
 # Generate checksums file
 checksum:
@@ -66,22 +55,8 @@ checksum:
 # Create a GitHub Release
 # Reference: https://goreleaser.com/customization/release/
 release:
-  # Repo details are usually inferred from the Git remote URL
-  # github:
-  #   owner: benekuehn
-  #   name: socle
-
   # Creates a draft release. Change to false to auto-publish.
   draft: true
-
-  # Generates release notes based on commits since the last tag.
-  # Optional: Customize further https://goreleaser.com/customization/release/#release-notes
-  # changelog:
-  #   sort: asc
-  #   filters:
-  #     exclude:
-  #       - '^docs:'
-  #       - '^test:'
 
 # Homebrew Tap configuration
 # Reference: https://goreleaser.com/customization/homebrew/
@@ -89,14 +64,7 @@ brews:
   - # Tap repository details
     repository:
       owner: benekuehn
-      name: homebrew-socle # Your tap repository name
-      # Optional: Branch to push the formula to (defaults to main/master)
-      # branch: main
-      # Optional: Skip tap creation if it doesn't exist (defaults to false)
-
-    # Formula name will be <project_name>.rb (socle.rb)
-    # Optional: Specify a custom formula name
-    # name: "socle"
+      name: homebrew-tap # Your tap repository name
 
     # Commit message template for the tap repository
     commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
@@ -109,29 +77,7 @@ brews:
     # License for the formula
     license: "MIT"
 
-    # Specify which build IDs this formula applies to
-    # Useful if you have multiple builds (e.g., server, cli)
-    # builds:
-    #   - socle-cli
-
-    # Optional: Add dependencies
-    # depends_on:
-    #   - name: git
-
-    # Optional: Add test block (GoReleaser generates a simple one by default)
-    # test: |
-    #   system "#{bin}/so --version"
-
 # Configuration for snapshot releases (testing without tagging)
 # Reference: https://goreleaser.com/customization/snapshots/
 snapshot:
   name_template: "{{ incpatch .Version }}-next"
-
-# Changelog configuration (if not using auto-generated release notes)
-# https://goreleaser.com/customization/changelog/
-# changelog:
-#   sort: asc
-#   filters:
-#     exclude:
-#       - '^docs:'
-#       - '^test:' 

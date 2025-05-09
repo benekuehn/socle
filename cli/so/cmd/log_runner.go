@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"strconv"
+	"strings"
 
 	"github.com/benekuehn/socle/cli/so/internal/cmdutils"
 	"github.com/benekuehn/socle/cli/so/internal/gh"
@@ -35,50 +36,71 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 	if handled {
 		return nil
 	}
-	_, _ = fmt.Fprintf(r.stdout, "Current branch: %s (Stack base: %s)\n", currentBranch, baseBranch)
+
+	_, _ = fmt.Fprintln(r.stdout) // Add a blank line at the beginning
+
+	boldStyle := lipgloss.NewStyle().Bold(true)
 
 	var ghClient *gh.Client
 	var ghClientErr error
 	var ghClientInitialized = false
 
-	_, _ = fmt.Fprintln(r.stdout, "\nCurrent Stack Status:")
-	baseMarker := ""
-	if baseBranch == currentBranch {
-		baseMarker = " *"
-	}
-	_, _ = fmt.Fprintf(r.stdout, "  %s (base)%s\n", baseBranch, baseMarker)
-
-	ancestorNeedsRestack := false
-
-	for i := 1; i < len(stack); i++ {
+	for i := len(stack) - 1; i >= 1; i-- {
 		branchName := stack[i]
 		parentName := stack[i-1]
-		rebaseStatus := getRebaseStatus(parentName, branchName, r.stderr)
 
-		effectiveNeedsRestack := (rebaseStatus.text == "(Needs Restack)") || ancestorNeedsRestack
-		if effectiveNeedsRestack && rebaseStatus.text == "(Up-to-date)" {
-			rebaseStatus = statusResult{"(Needs Restack)", func(s string) string { return ui.Colors.WarningStyle.Render(s) }}
-		}
-		ancestorNeedsRestack = effectiveNeedsRestack
-
-		prStatus := getPrStatusDisplay(ctx, &ghClient, &ghClientErr, &ghClientInitialized, branchName, r.stderr)
-		marker := ""
+		branchIndicator := "◯"
 		if branchName == currentBranch {
-			marker = " *"
+			branchIndicator = "◉"
+		}
+		_, _ = fmt.Fprintf(r.stdout, "    %s  %s\n", branchIndicator, boldStyle.Render(branchName))
+
+		rebaseStatusResult := getRebaseStatus(parentName, branchName, r.stderr)
+		// Pass ghClientErr and ghClientInitialized by pointer to allow getPrStatusDisplay to update them
+		prStatusResult := getPrStatusDisplay(ctx, &ghClient, &ghClientErr, &ghClientInitialized, branchName, r.stderr)
+
+		var rebaseText string
+		switch rebaseStatusResult.text {
+		case "(Needs Restack)":
+			rebaseText = "🚧 Needs restack"
+		case "(Up-to-date)":
+			rebaseText = "🤝 Up-to-date"
+		default:
+			rebaseText = "⚠️ Status error"
 		}
 
-		_, _ = fmt.Fprintf(r.stdout, "  -> %s %s %s%s\n",
-			branchName,
-			rebaseStatus.render(rebaseStatus.text),
-			prStatus.render(prStatus.text),
-			marker,
-		)
+		var prText string
+		if strings.Contains(prStatusResult.text, ": Merged)") {
+			prText = "✅ PR merged"
+		} else if strings.Contains(prStatusResult.text, ": Closed)") {
+			prText = "🚫 PR closed"
+		} else if strings.Contains(prStatusResult.text, ": Draft)") {
+			prText = "📝 PR draft"
+		} else if strings.Contains(prStatusResult.text, ": Open)") {
+			prText = "➡️ PR open"
+		} else if strings.Contains(prStatusResult.text, "Not Submitted") {
+			prText = "⚪ PR not submitted"
+		} else if strings.Contains(prStatusResult.text, "Login/Setup Needed") {
+			prText = "🔑 GH Login Needed"
+		} else {
+			prText = "⚠️ PR status error"
+		}
+
+		_, _ = fmt.Fprintf(r.stdout, "    │  %s | %s\n", rebaseText, prText)
+
+		if i > 1 {
+			_, _ = fmt.Fprintln(r.stdout, "    │")
+		}
 	}
+
+	_, _ = fmt.Fprintln(r.stdout, "  ╭─╯")
+	_, _ = fmt.Fprintf(r.stdout, "   ~ %s\n", boldStyle.Render(baseBranch)) // Added one space before ~
+
+	_, _ = fmt.Fprintln(r.stdout) // Add a blank line at the end
 
 	return nil
 }
 
-// getRebaseStatus determines the rebase status string and render function
 func getRebaseStatus(parentName, branchName string, errW io.Writer) statusResult {
 	needsRestack, errCheck := git.NeedsRestack(parentName, branchName)
 
@@ -92,7 +114,6 @@ func getRebaseStatus(parentName, branchName string, errW io.Writer) statusResult
 	}
 }
 
-// getPrStatusDisplay reads config, calls gh service, and maps result to display statusResult
 func getPrStatusDisplay(ctx context.Context, ghClient **gh.Client, clientErr *error, clientInitialized *bool, branchName string, errW io.Writer) statusResult {
 	defaultRender := func(s string) string { return s }
 
@@ -117,8 +138,11 @@ func getPrStatusDisplay(ctx context.Context, ghClient **gh.Client, clientErr *er
 	}
 
 	if !*clientInitialized {
-		*clientInitialized = true
-		remoteName := "origin"
+		*clientInitialized = true // Mark that we've attempted initialization.
+		// Use the clientErr passed by pointer to store any initialization error.
+		// The ghClient itself is also passed by pointer and will be updated.
+
+		remoteName := "origin" // Or make configurable
 		remoteURL, errURL := git.GetRemoteURL(remoteName)
 		if errURL != nil {
 			*clientErr = fmt.Errorf("cannot get remote URL '%s': %w", remoteName, errURL)
@@ -127,23 +151,29 @@ func getPrStatusDisplay(ctx context.Context, ghClient **gh.Client, clientErr *er
 			if errParse != nil {
 				*clientErr = fmt.Errorf("cannot parse owner/repo from '%s': %w", remoteURL, errParse)
 			} else {
+				// Attempt to create a new client
 				client, errCli := gh.NewClient(ctx, owner, repoName)
 				if errCli != nil {
 					*clientErr = fmt.Errorf("GitHub client init failed: %w", errCli)
 				} else {
-					*ghClient = client
+					*ghClient = client // Update the shared client instance
 				}
 			}
 		}
+		// If there was an error during initialization, report it (once).
 		if *clientErr != nil {
 			_, _ = fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("Warning: Cannot fetch PR status: %v\n"), *clientErr)
 		}
 	}
 
+	// Check if client is still nil (e.g. init failed) or if there was a stored clientErr from the first attempt.
 	if *ghClient == nil {
+		// If client is nil and we have a clientErr, it means init failed on its first attempt.
+		// If client is nil and no clientErr, it implies some other issue (should not happen if logic is correct).
 		return statusResult{"(PR: Login/Setup Needed)", func(s string) string { return ui.Colors.WarningStyle.Render(s) }}
 	}
 
+	// ghClient should be usable now (or was already).
 	semanticStatus, _, errGetStatus := (*ghClient).GetPullRequestStatus(prNumber)
 	if errGetStatus != nil {
 		_, _ = fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("  Warning: Could not fetch PR #%d for '%s': %v\n"), prNumber, branchName, errGetStatus)
