@@ -69,6 +69,16 @@ export function StackedBranchesSection() {
 
   return (
     <section ref={sectionRef} className="relative w-full bg-zinc-950" style={totalHeight ? { height: totalHeight } : { minHeight: '100vh' }}>
+      <div className="w-full flex justify-center pt-10 relative z-100 -mb-64">
+        <motion.h2
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="text-3xl font-bold text-center text-zinc-300 "
+        >
+          Why Stacked Branches?
+        </motion.h2>
+      </div>
       <div className="max-w-6xl mx-auto grid md:grid-cols-2 h-full">
         {/* Left column: sticky and centered for the whole region */}
         <div className="h-full flex flex-col">
@@ -116,14 +126,6 @@ export function StackedBranchesSection() {
         {/* Right column: sticky and centered for the whole region */}
         <div className="h-full flex flex-col">
           <div className="sticky top-0 h-screen flex flex-col items-center justify-center">
-            <motion.h2
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="text-3xl font-bold text-center text-zinc-300 mb-10"
-            >
-              Why Stacked Branches?
-            </motion.h2>
             <div className="relative w-64 h-96 flex items-center justify-center">
               <div className="absolute inset-0 bg-zinc-800 rounded-lg border border-zinc-700" />
               <div className="absolute inset-0 bg-zinc-700 rounded-lg border border-zinc-600" />
