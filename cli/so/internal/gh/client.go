@@ -2,11 +2,15 @@ package gh
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -14,6 +18,18 @@ import (
 	"github.com/google/go-github/v71/github"
 	"golang.org/x/oauth2"
 )
+
+const (
+	cacheDirName  = "socle"
+	cacheFileName = "gh_token.json"
+	tokenCacheTTL = 1 * time.Hour
+)
+
+// CachedGhToken stores the GitHub token and its expiry time.
+type CachedGhToken struct {
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
 
 // Client wraps the go-github client.
 type Client struct {
@@ -35,59 +51,144 @@ type ClientInterface interface {
 
 var _ ClientInterface = (*Client)(nil)
 
-// NewClient creates a new GitHub client using GITHUB_TOKEN.
+func getCacheFilePath() (string, error) {
+	usrCacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user cache directory: %w", err)
+	}
+	return filepath.Join(usrCacheDir, cacheDirName, cacheFileName), nil
+}
+
+func loadTokenFromCache(filePath string) (*CachedGhToken, error) {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		slog.Debug("Cache file does not exist.", "path", filePath)
+		return nil, nil // Not an error, just no cache
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read cache file '%s': %w", filePath, err)
+	}
+
+	if len(data) == 0 {
+		slog.Debug("Cache file is empty.", "path", filePath)
+		return nil, nil // Not an error, just empty cache
+	}
+
+	var cachedToken CachedGhToken
+	if err := json.Unmarshal(data, &cachedToken); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal cached token from '%s': %w", filePath, err)
+	}
+
+	if time.Now().After(cachedToken.ExpiresAt) {
+		slog.Debug("Cached token is expired.", "path", filePath, "expires_at", cachedToken.ExpiresAt)
+		return nil, nil // Expired, treat as no cache
+	}
+
+	slog.Debug("Successfully loaded valid token from cache.", "path", filePath, "expires_at", cachedToken.ExpiresAt)
+	return &cachedToken, nil
+}
+
+func saveTokenToCache(filePath string, token string, ttl time.Duration) error {
+	cacheDir := filepath.Dir(filePath)
+	if err := os.MkdirAll(cacheDir, 0700); err != nil {
+		return fmt.Errorf("failed to create cache directory '%s': %w", cacheDir, err)
+	}
+
+	tokenData := CachedGhToken{
+		Token:     token,
+		ExpiresAt: time.Now().Add(ttl),
+	}
+
+	data, err := json.MarshalIndent(tokenData, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal token for cache: %w", err)
+	}
+
+	if err := os.WriteFile(filePath, data, 0600); err != nil {
+		return fmt.Errorf("failed to write token to cache file '%s': %w", filePath, err)
+	}
+	slog.Debug("Successfully saved token to cache.", "path", filePath, "expires_at", tokenData.ExpiresAt)
+	return nil
+}
+
+// NewClient creates a new GitHub client.
+// It prioritizes GITHUB_TOKEN env var, then a cached token from 'gh auth token',
+// then a fresh 'gh auth token' call if no valid cache.
 func NewClient(ctx context.Context, owner, repo string) (*Client, error) {
 	token := os.Getenv("GITHUB_TOKEN")
-	ghUsed := false // Track if we used gh token
+	authMethod := "GITHUB_TOKEN"
 
 	if token == "" {
-		// GITHUB_TOKEN not set, try fetching from 'gh' CLI
-		slog.Debug("GITHUB_TOKEN not set. Checking 'gh' CLI for authentication...")
-
-		// Check if 'gh' command exists first
-		ghPath, errLookPath := exec.LookPath("gh")
-		if errLookPath != nil {
-			// 'gh' CLI not found in PATH
-			return nil, fmt.Errorf("authentication failed: GITHUB_TOKEN not set and 'gh' CLI not found in PATH. Please set GITHUB_TOKEN or install and authenticate GitHub CLI ('gh auth login')")
-		}
-		slog.Debug("Found 'gh' CLI. Attempting to fetch token...", "ghPath", ghPath)
-
-		// Check if gh cli is installed by trying to run 'gh --version'
-		_, err := cmdexec.RunExternalCommand("gh", "--version")
+		authMethod = "gh CLI (cached)"
+		cacheFilePath, err := getCacheFilePath()
 		if err != nil {
-			return nil, fmt.Errorf("gh cli not installed or not found in PATH: %w", err)
+			slog.Warn("Failed to determine cache file path. Proceeding without cache.", "error", err)
+			// Proceed without cache, will try gh auth token directly.
+		} else {
+			cachedToken, errLoad := loadTokenFromCache(cacheFilePath)
+			if errLoad != nil {
+				slog.Warn("Failed to load token from cache. Proceeding to fetch fresh token.", "path", cacheFilePath, "error", errLoad)
+				// Invalidate bad cache file by attempting to remove it
+				if errRemove := os.Remove(cacheFilePath); errRemove != nil && !errors.Is(errRemove, fs.ErrNotExist) {
+					slog.Warn("Failed to remove corrupted cache file.", "path", cacheFilePath, "error", errRemove)
+				}
+			}
+			if cachedToken != nil {
+				token = cachedToken.Token
+			}
 		}
-		slog.Debug("Found 'gh' CLI. Attempting to fetch token...", "ghPath", ghPath)
 
-		// Use gh auth token to get token
-		ghToken, err := cmdexec.RunExternalCommand("gh", "auth", "token")
-		if err != nil {
-			return nil, fmt.Errorf("error getting gh auth token: %w", err)
+		if token == "" { // Still no token (no GITHUB_TOKEN, no valid cache)
+			authMethod = "gh CLI (live)"
+			slog.Debug("GITHUB_TOKEN not set and no valid cached token. Checking 'gh' CLI for authentication...")
+
+			ghPath, errLookPath := exec.LookPath("gh")
+			if errLookPath != nil {
+				return nil, fmt.Errorf("authentication failed: GITHUB_TOKEN not set, no cached token, and 'gh' CLI not found in PATH. Please set GITHUB_TOKEN or install and authenticate GitHub CLI ('gh auth login')")
+			}
+			slog.Debug("Found 'gh' CLI. Attempting to fetch token...", "ghPath", ghPath)
+
+			// Check if gh cli is installed by trying to run 'gh --version'
+			// This check might be redundant if LookPath succeeded and 'gh auth token' works,
+			// but keeping for robustness.
+			_, errVersion := cmdexec.RunExternalCommand("gh", "--version")
+			if errVersion != nil {
+				return nil, fmt.Errorf("gh cli not installed or not found in PATH (despite LookPath success): %w. Please run 'gh auth login' or set GITHUB_TOKEN", errVersion)
+			}
+
+			ghToken, errGhAuth := cmdexec.RunExternalCommand("gh", "auth", "token")
+			if errGhAuth != nil {
+				return nil, fmt.Errorf("error getting token via 'gh auth token': %w. Please run 'gh auth login' or set GITHUB_TOKEN", errGhAuth)
+			}
+			if ghToken == "" {
+				return nil, fmt.Errorf("authentication failed: GITHUB_TOKEN not set, no cache, and 'gh auth token' returned empty. Please run 'gh auth login' or set GITHUB_TOKEN")
+			}
+
+			token = strings.TrimSpace(ghToken)
+			slog.Debug("Successfully retrieved token using 'gh auth token'.")
+
+			if cacheFilePath != "" { // If we determined a cache path earlier
+				if errSave := saveTokenToCache(cacheFilePath, token, tokenCacheTTL); errSave != nil {
+					slog.Warn("Failed to save fetched token to cache.", "path", cacheFilePath, "error", errSave)
+				}
+			}
 		}
-		if ghToken == "" {
-			// gh command ran but returned empty token
-			return nil, fmt.Errorf("authentication failed: GITHUB_TOKEN not set and 'gh auth token' returned empty. Please run 'gh auth login' or set GITHUB_TOKEN")
-		}
-		slog.Debug("Successfully retrieved token using 'gh auth token'.")
-		token = strings.TrimSpace(ghToken) // Use the token from gh
-		ghUsed = true
 	}
 
-	if !ghUsed {
-		slog.Debug("Using GITHUB_TOKEN for authentication.")
-	}
+	slog.Debug("Using token for GitHub client.", "auth_method", authMethod)
 
-	// Use the determined token (either from ENV or gh)
 	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	tc := oauth2.NewClient(ctx, ts)
 	httpClientWithTimeout := &http.Client{
 		Transport: tc.Transport,
-		Timeout:   15 * time.Second,
+		Timeout:   15 * time.Second, // Consider making timeout configurable
 	}
 	ghClient := github.NewClient(httpClientWithTimeout)
 
-	// Optional: Verify token works (consider adding this later if needed)
-	// _, _, errVerify := ghClient.Users.Get(ctx, "") ...
+	// Optional: Verify token works (e.g., ghClient.Users.Get(ctx, "")).
+	// This would add a network call but ensure the token (from env/cache/live) is valid.
+	// For now, we proceed optimistically. If API calls fail later, it will be evident.
 
 	return &Client{gh: ghClient, Owner: owner, Repo: repo, Ctx: ctx}, nil
 }

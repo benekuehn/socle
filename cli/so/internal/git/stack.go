@@ -1,9 +1,9 @@
 package git
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 )
 
 // GetCurrentStackInfo determines the current branch, its base branch, and the full stack of branches
@@ -22,15 +22,15 @@ func GetCurrentStackInfo() (currentBranch string, stack []string, baseBranch str
 	parentConfigKey := fmt.Sprintf("branch.%s.socle-parent", currentBranch)
 	baseConfigKey := fmt.Sprintf("branch.%s.socle-base", currentBranch)
 
+	// errParent is used to check if parent config exists, actual parent name is read in the loop if needed.
 	_, errParent := GetGitConfig(parentConfigKey)
-	baseBranch, errBase := GetGitConfig(baseConfigKey)
+	baseBranchNameFromConfig, errBase := GetGitConfig(baseConfigKey)
 
 	// Check for specific "not found" errors from GetGitConfig
-	// (Assuming GetGitConfig returns an error containing "not found" text)
-	isParentNotFound := errParent != nil && strings.Contains(errParent.Error(), "not found")
-	isBaseNotFound := errBase != nil && strings.Contains(errBase.Error(), "not found")
+	isParentNotFound := errors.Is(errParent, ErrConfigNotFound)
+	isBaseNotFound := errors.Is(errBase, ErrConfigNotFound)
 
-	isUntracked := isParentNotFound || isBaseNotFound
+	// isUntracked := isParentNotFound || isBaseNotFound // This variable is no longer used with the refined logic below.
 
 	// Handle other unexpected errors during config reading
 	if errParent != nil && !isParentNotFound {
@@ -52,32 +52,44 @@ func GetCurrentStackInfo() (currentBranch string, stack []string, baseBranch str
 		return
 	}
 
-	// If it's not a known base branch AND tracking info is missing
-	if isUntracked {
-		err = fmt.Errorf("current branch '%s' is not tracked by socle and is not a known base branch.\nRun 'so track' on this branch first", currentBranch)
+	// If it's not a known base branch AND tracking info is missing (specifically base, parent might be missing if it IS the base)
+	if isBaseNotFound { // If socle-base is not defined, it must be untracked or a base branch itself (which was checked above)
+		err = fmt.Errorf("current branch '%s' is not tracked by socle (missing socle-base config) and is not a known base branch.\nRun 'so track' on this branch first", currentBranch)
 		return
 	}
+	// If base is found, use it. isUntracked check earlier was a bit broad.
+	baseBranch = baseBranchNameFromConfig
 
-	// If we reach here, the branch is tracked and is not the base branch itself.
-	// BaseBranch variable holds the correct base name from config.
+	// If we reach here, the branch is tracked (has a socle-base) and is not a known base branch itself.
+	// baseBranch variable holds the correct base name from config.
 
 	// 3. Build the stack by walking up the parents
 	stack = []string{currentBranch} // Start with the current branch
-	current := currentBranch        // Start the walk from the current branch
+	currentInLoop := currentBranch  // Start the walk from the current branch
 
 	for {
-		// Get the parent of the 'current' branch in the walk-up
-		currentParentKey := fmt.Sprintf("branch.%s.socle-parent", current)
+		// If currentInLoop is already the baseBranch, we stop. This happens if currentBranch's parent is the base.
+		if currentInLoop == baseBranch {
+			break
+		}
+
+		// Get the parent of the 'currentInLoop' branch in the walk-up
+		currentParentKey := fmt.Sprintf("branch.%s.socle-parent", currentInLoop)
 		parent, parentErr := GetGitConfig(currentParentKey)
 
 		if parentErr != nil {
-			// If we can't find the parent config for an intermediate branch, the tracking is broken
-			if strings.Contains(parentErr.Error(), "not found") {
-				err = fmt.Errorf("tracking information broken: parent branch config key '%s' not found for branch '%s'. Cannot determine stack", currentParentKey, current)
+			// If we can't find the parent config for an intermediate branch (that is not the baseBranch itself),
+			// the tracking is broken or this branch is unexpectedly the one just above base.
+			if errors.Is(parentErr, ErrConfigNotFound) {
+				// This implies currentInLoop is the branch directly on top of baseBranch, and baseBranch has no socle-parent itself.
+				// Or, tracking is broken for currentInLoop.
+				// If parent is indeed the baseBranch, the loop condition `currentInLoop == baseBranch` should handle it.
+				// If we expect a parent because currentInLoop is not baseBranch, then this is an error.
+				err = fmt.Errorf("tracking information broken: parent branch config key '%s' not found for branch '%s', which is not the base '%s'. Cannot determine stack", currentParentKey, currentInLoop, baseBranch)
 			} else {
-				err = fmt.Errorf("failed to read tracking parent for intermediate branch '%s': %w", current, parentErr)
+				err = fmt.Errorf("failed to read tracking parent for intermediate branch '%s': %w", currentInLoop, parentErr)
 			}
-			return // Return empty stack/base and the error
+			return // Return with error
 		}
 
 		// Prepend the found parent to the stack slice
@@ -89,12 +101,12 @@ func GetCurrentStackInfo() (currentBranch string, stack []string, baseBranch str
 		}
 
 		// Move up for the next iteration
-		current = parent
+		currentInLoop = parent
 
 		// Safety break to prevent infinite loops in case of cyclic metadata
 		if len(stack) > 50 { // Arbitrary limit
 			err = fmt.Errorf("stack trace exceeds 50 levels, assuming cycle or error in tracking metadata")
-			return // Return empty stack/base and the error
+			return // Return with error
 		}
 	} // End of for loop
 

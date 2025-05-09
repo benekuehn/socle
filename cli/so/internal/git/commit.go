@@ -70,3 +70,37 @@ func GetCurrentBranchCommit(branchName string) (string, error) {
 	}
 	return output, nil
 }
+
+// GetMultipleBranchCommits returns the full commit hashes for the tips of multiple specific local branches.
+// It runs a single `git rev-parse` command for efficiency.
+// Returns a map of branchName -> commitHash and an error if any occurred.
+func GetMultipleBranchCommits(branchNames []string) (map[string]string, error) {
+	if len(branchNames) == 0 {
+		return make(map[string]string), nil
+	}
+
+	args := []string{"rev-parse"}
+	for _, branchName := range branchNames {
+		// Ensure we are asking for the local branch ref, e.g., refs/heads/mybranch
+		// However, git rev-parse typically resolves simple branch names correctly.
+		// For robustness with GetCurrentBranchCommit, it uses refs/heads/. We can just pass branchName.
+		args = append(args, branchName)
+	}
+
+	output, err := RunGitCommand(args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get commit hashes for branches %v: %w", branchNames, err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) != len(branchNames) {
+		return nil, fmt.Errorf("git rev-parse returned %d lines, expected %d for branches %v. Output: %s", len(lines), len(branchNames), branchNames, output)
+	}
+
+	commitMap := make(map[string]string)
+	for i, branchName := range branchNames {
+		commitMap[branchName] = strings.TrimSpace(lines[i])
+	}
+
+	return commitMap, nil
+}

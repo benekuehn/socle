@@ -2,6 +2,9 @@
 package cmd
 
 import (
+	"fmt"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/benekuehn/socle/cli/so/internal/testutils"
@@ -9,121 +12,194 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// stripAnsi removes ANSI escape codes from a string.
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+
+func stripAnsi(s string) string {
+	return ansiRegex.ReplaceAllString(s, "")
+}
+
+// Helper to build expected log output string for a branch (plain text)
+func expectedBranchOutput(indicator, branchName, rebaseStatus, prStatus string, isLast bool) string {
+	lines := []string{
+		fmt.Sprintf("    %s  %s", indicator, branchName),
+		fmt.Sprintf("    │  %s | %s", rebaseStatus, prStatus),
+	}
+	if !isLast {
+		lines = append(lines, "    │")
+	}
+	return strings.Join(lines, "\n") + "\n"
+}
+
+// Helper to build expected base output (plain text)
+func expectedBaseOutput(baseBranchName string) string {
+	return fmt.Sprintf("  ╭─╯\n   ~ %s\n", baseBranchName)
+}
+
 func TestLogCommand(t *testing.T) {
 	t.Run("Log on base branch", func(t *testing.T) {
-		_, cleanup := testutils.SetupGitRepo(t) // Only need main branch
+		_, cleanup := testutils.SetupGitRepo(t)
 		defer cleanup()
 
-		// Action: Run 'so log' while on main
 		stdout, stderr, err := runSoCommandWithOutput(t, "log")
 
-		// Assertions
 		require.NoError(t, err)
-		assert.Empty(t, stderr, "Stderr should be empty")
-		assert.Contains(t, stdout, "Currently on the base branch 'main'.")
-		assert.NotContains(t, stdout, "Current Stack Status:", "Should not print stack table")
+		strippedStderr := stripAnsi(stderr)
+		// assert.Regexp(t, regexp.MustCompile(`\\[DEBUG\\] Time for GitHub client initialization: \\S+`), strippedStderr) // This line is now commented out
+		assert.Regexp(t, regexp.MustCompile(`\[DEBUG\] Total execution time for log command: \S+`), strippedStderr)
+
+		strippedStdout := stripAnsi(stdout)
+		assert.Contains(t, strippedStdout, "Currently on the base branch 'main'.")
+		assert.NotContains(t, strippedStdout, "╭─╯")
 	})
 
 	t.Run("Log on untracked branch", func(t *testing.T) {
 		repoPath, cleanup := testutils.SetupGitRepo(t)
 		defer cleanup()
 
-		// Setup: create branch but don't track
 		testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature-untracked")
 
-		// Action: Run 'so log'
 		stdout, stderr, err := runSoCommandWithOutput(t, "log")
 
-		// Assertions
-		require.NoError(t, err) // Should exit cleanly with info message
-		assert.Empty(t, stderr)
-		assert.Contains(t, stdout, "Branch 'feature-untracked' is not currently tracked by socle.")
-		assert.Contains(t, stdout, "Use 'so track' to associate it")
-		assert.NotContains(t, stdout, "Current Stack Status:")
+		require.NoError(t, err)
+		strippedStderr := stripAnsi(stderr)
+		assert.Regexp(t, regexp.MustCompile(`\[DEBUG\] Total execution time for log command: \S+`), strippedStderr)
+
+		strippedStdout := stripAnsi(stdout)
+		assert.Contains(t, strippedStdout, "Branch 'feature-untracked' is not currently tracked by socle.")
+		assert.Contains(t, strippedStdout, "Use 'so track' to associate it")
+		assert.NotContains(t, strippedStdout, "╭─╯")
 	})
 
 	t.Run("Log simple tracked stack (up-to-date, no PR)", func(t *testing.T) {
-		_, cleanup := setupRepoWithStack(t, []string{"main", "feature-a", "feature-b"})
-		defer cleanup() // cd back happens here
+		repoPath, cleanup := setupRepoWithStack(t, []string{"main", "feature-a", "feature-b"})
+		defer cleanup()
+		testutils.RunCommand(t, repoPath, "git", "remote", "add", "origin", "https://github.com/example/test-repo.git")
+		testutils.RunCommand(t, repoPath, "git", "checkout", "feature-b")
 
-		// Action: Run 'so log' (currently on feature-b from setup)
-		stdout, _, err := runSoCommandWithOutput(t, "log")
+		stdout, stderr, err := runSoCommandWithOutput(t, "log")
 
-		// Assertions
 		require.NoError(t, err)
-		// Expect warnings about GitHub client failing if GITHUB_TOKEN isn't set in test env
-		// assert.Empty(t, stderr) // Might not be empty due to GH client warnings
+		strippedStderr := stripAnsi(stderr)
+		assert.Regexp(t, regexp.MustCompile(`\[DEBUG\] Time for GitHub PR fetches: \S+`), strippedStderr)
+		assert.Regexp(t, regexp.MustCompile(`\[DEBUG\] Total execution time for log command: \S+`), strippedStderr)
 
-		assert.Contains(t, stdout, "Current branch: feature-b (Stack base: main)")
-		assert.Contains(t, stdout, "Current Stack Status:")
-		assert.Contains(t, stdout, "main (base)")
-		// Use regex or careful Contains because of color codes/variable spacing
-		assert.Regexp(t, `->\s+feature-a\s+\(Up-to-date\)\s+\(PR: Not Submitted\)`, stdout)
-		assert.Regexp(t, `->\s+feature-b\s+\(Up-to-date\)\s+\(PR: Not Submitted\)\s+\*`, stdout)
+		var expectedOutput strings.Builder
+		expectedOutput.WriteString(expectedBranchOutput("◉", "feature-b", "🤝 Up-to-date", "⚪ PR not submitted", false))
+		expectedOutput.WriteString(expectedBranchOutput("◯", "feature-a", "🤝 Up-to-date", "⚪ PR not submitted", true))
+		expectedOutput.WriteString(expectedBaseOutput("main"))
+
+		actualContent := stripAnsi(stdout)
+		actualContent = strings.TrimPrefix(actualContent, "\n")
+		actualContent = strings.TrimSuffix(actualContent, "\n")
+		assert.Equal(t, expectedOutput.String(), actualContent)
 	})
 
 	t.Run("Log stack needs restack (no PR)", func(t *testing.T) {
 		repoPath, cleanup := setupRepoWithStack(t, []string{"main", "feature-a", "feature-b"})
 		defer cleanup()
+		testutils.RunCommand(t, repoPath, "git", "remote", "add", "origin", "https://github.com/example/test-repo.git")
 
-		// Setup: Add commit to main to make stack need restack
 		testutils.RunCommand(t, repoPath, "git", "checkout", "main")
 		writeFile(t, repoPath, "main_change.txt", "change")
 		testutils.RunCommand(t, repoPath, "git", "add", ".")
 		testutils.RunCommand(t, repoPath, "git", "commit", "-m", "change main")
-		testutils.RunCommand(t, repoPath, "git", "checkout", "feature-b") // Checkout tip
+		testutils.RunCommand(t, repoPath, "git", "checkout", "feature-b")
 
-		// Action: Run 'so log'
-		stdout, _, err := runSoCommandWithOutput(t, "log")
-
-		// Assertions
-		require.NoError(t, err)
-		// Expect warnings about GitHub client failing
-
-		assert.Contains(t, stdout, "Current branch: feature-b (Stack base: main)")
-		assert.Contains(t, stdout, "Current Stack Status:")
-		assert.Contains(t, stdout, "main (base)")
-		assert.Regexp(t, `->\s+feature-a\s+\(Needs Restack\)\s+\(PR: Not Submitted\)`, stdout)
-		assert.Regexp(t, `->\s+feature-b\s+\(Needs Restack\)\s+\(PR: Not Submitted\)\s+\*`, stdout) // feature-b also needs restack because its parent does
-	})
-
-	t.Run("Log stack with PR config (no API access)", func(t *testing.T) {
-		repoPath, cleanup := setupRepoWithStack(t, []string{"main", "feature-a"})
-		defer cleanup()
-
-		// Setup: Add PR config for feature-a
-		testutils.RunCommand(t, repoPath, "git", "config", "--local", "branch.feature-a.socle-pr-number", "123")
-
-		// Action: Run 'so log'
 		stdout, stderr, err := runSoCommandWithOutput(t, "log")
 
-		// Assertions
 		require.NoError(t, err)
-		// Expect warning about GH client init failure in stderr
-		assert.Contains(t, stderr, "Warning: Cannot fetch PR status:")
+		strippedStderr := stripAnsi(stderr)
+		assert.Regexp(t, regexp.MustCompile(`\[DEBUG\] Time for GitHub PR fetches: \S+`), strippedStderr)
+		assert.Regexp(t, regexp.MustCompile(`\[DEBUG\] Total execution time for log command: \S+`), strippedStderr)
 
-		assert.Contains(t, stdout, "Current branch: feature-a (Stack base: main)")
-		assert.Regexp(t, `->\s+feature-a\s+\(Up-to-date\)\s+\(PR: Login/Setup Needed\)\s+\*`, stdout)
+		var expectedOutput strings.Builder
+		expectedOutput.WriteString(expectedBranchOutput("◉", "feature-b", "🤝 Up-to-date", "⚪ PR not submitted", false))
+		expectedOutput.WriteString(expectedBranchOutput("◯", "feature-a", "🚧 Needs restack", "⚪ PR not submitted", true))
+		expectedOutput.WriteString(expectedBaseOutput("main"))
+
+		actualContent := stripAnsi(stdout)
+		actualContent = strings.TrimPrefix(actualContent, "\n")
+		actualContent = strings.TrimSuffix(actualContent, "\n")
+		assert.Equal(t, expectedOutput.String(), actualContent)
+	})
+
+	t.Run("Log stack with PR config (PR not found scenario)", func(t *testing.T) {
+		repoPath, cleanup := setupRepoWithStack(t, []string{"main", "feature-a"})
+		defer cleanup()
+		testutils.RunCommand(t, repoPath, "git", "remote", "add", "origin", "https://github.com/example/test-repo.git")
+		testutils.RunCommand(t, repoPath, "git", "checkout", "feature-a")
+
+		testutils.RunCommand(t, repoPath, "git", "config", "--local", "branch.feature-a.socle-pr-number", "123")
+
+		stdout, stderr, err := runSoCommandWithOutput(t, "log")
+
+		require.NoError(t, err)
+		strippedStderr := stripAnsi(stderr)
+		assert.Regexp(t, regexp.MustCompile(`\[DEBUG\] Time for GitHub client initialization: \S+`), strippedStderr)
+		assert.Regexp(t, regexp.MustCompile(`\[DEBUG\] Time for GitHub PR fetches: \S+`), strippedStderr)
+		assert.Regexp(t, regexp.MustCompile(`Warning: Could not fetch PR #123 for 'feature-a': pull request #123 not found`), strippedStderr)
+		assert.Regexp(t, regexp.MustCompile(`\[DEBUG\] Total execution time for log command: \S+`), strippedStderr)
+
+		var expectedOutput strings.Builder
+		expectedOutput.WriteString(expectedBranchOutput("◉", "feature-a", "🤝 Up-to-date", "⚠️ PR status error", true))
+		expectedOutput.WriteString(expectedBaseOutput("main"))
+
+		actualContent := stripAnsi(stdout)
+		actualContent = strings.TrimPrefix(actualContent, "\n")
+		actualContent = strings.TrimSuffix(actualContent, "\n")
+		assert.Equal(t, expectedOutput.String(), actualContent)
 	})
 
 	t.Run("Log stack with invalid PR config", func(t *testing.T) {
 		repoPath, cleanup := setupRepoWithStack(t, []string{"main", "feature-a"})
 		defer cleanup()
+		testutils.RunCommand(t, repoPath, "git", "remote", "add", "origin", "https://github.com/example/test-repo.git")
+		testutils.RunCommand(t, repoPath, "git", "checkout", "feature-a")
 
-		// Setup: Add invalid PR config for feature-a
 		testutils.RunCommand(t, repoPath, "git", "config", "--local", "branch.feature-a.socle-pr-number", "not-a-number")
 
-		// Action: Run 'so log'
 		stdout, stderr, err := runSoCommandWithOutput(t, "log")
 
-		// Assertions
 		require.NoError(t, err)
+		strippedStderr := stripAnsi(stderr)
 		// Expect warning about parsing PR number in stderr
-		assert.Contains(t, stderr, "Warning: Could not parse PR number 'not-a-number'")
+		assert.Regexp(t, regexp.MustCompile(`Warning: Could not parse PR number 'not-a-number' for 'feature-a'`), strippedStderr)
+		assert.Regexp(t, regexp.MustCompile(`\[DEBUG\] Total execution time for log command: \S+`), strippedStderr)
 
-		assert.Contains(t, stdout, "Current branch: feature-a (Stack base: main)")
-		assert.Regexp(t, `->\s+feature-a\s+\(Up-to-date\)\s+\(PR: Invalid #\)\s+\*`, stdout)
+		var expectedOutput strings.Builder
+		expectedOutput.WriteString(expectedBranchOutput("◉", "feature-a", "🤝 Up-to-date", "⚠️ PR status error", true))
+		expectedOutput.WriteString(expectedBaseOutput("main"))
+
+		actualContent := stripAnsi(stdout)
+		actualContent = strings.TrimPrefix(actualContent, "\n")
+		actualContent = strings.TrimSuffix(actualContent, "\n")
+		assert.Equal(t, expectedOutput.String(), actualContent)
 	})
 
-	// TODO: Tests with mocked GH client to verify different PR statuses display correctly
+	t.Run("Log stack with current branch not at the top", func(t *testing.T) {
+		// Stack: main -> feature-parent -> feature-current -> feature-topmost
+		repoPath, cleanup := setupRepoWithStack(t, []string{"main", "feature-parent", "feature-current", "feature-topmost"})
+		defer cleanup()
+		testutils.RunCommand(t, repoPath, "git", "remote", "add", "origin", "https://github.com/example/test-repo.git")
+		testutils.RunCommand(t, repoPath, "git", "checkout", "feature-current") // Current branch
+
+		stdout, stderr, err := runSoCommandWithOutput(t, "log")
+
+		require.NoError(t, err)
+		strippedStderr := stripAnsi(stderr)
+		assert.Regexp(t, regexp.MustCompile(`\[DEBUG\] Time for GitHub PR fetches: \S+`), strippedStderr)
+		assert.Regexp(t, regexp.MustCompile(`\[DEBUG\] Total execution time for log command: \S+`), strippedStderr)
+
+		var expectedOutput strings.Builder
+		expectedOutput.WriteString(expectedBranchOutput("◯", "feature-topmost", "🤝 Up-to-date", "⚪ PR not submitted", false))
+		expectedOutput.WriteString(expectedBranchOutput("◉", "feature-current", "🤝 Up-to-date", "⚪ PR not submitted", false))
+		expectedOutput.WriteString(expectedBranchOutput("◯", "feature-parent", "🤝 Up-to-date", "⚪ PR not submitted", true))
+		expectedOutput.WriteString(expectedBaseOutput("main"))
+
+		actualContent := stripAnsi(stdout)
+		actualContent = strings.TrimPrefix(actualContent, "\n")
+		actualContent = strings.TrimSuffix(actualContent, "\n")
+		assert.Equal(t, expectedOutput.String(), actualContent)
+	})
 }
