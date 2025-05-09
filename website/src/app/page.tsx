@@ -1,6 +1,7 @@
 import HeroSection from "@/components/HeroSection";
 import { TerminalDemo } from "@/components/TerminalDemo";
 import { KeyCommandsSection } from "@/components/KeyCommandsSection";
+import { StackedBranchesSection } from "@/components/StackedBranchesSection";
 import { CtaSection } from "@/components/CtaSection";
 
 export default function Home() {
@@ -10,6 +11,7 @@ export default function Home() {
         <HeroSection />
         <TerminalDemo />
         <KeyCommandsSection />
+        <StackedBranchesSection />
         <CtaSection />
       </main>
     </div>

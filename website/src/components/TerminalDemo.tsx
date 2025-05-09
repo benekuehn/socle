@@ -48,7 +48,7 @@ export const TerminalDemo: React.FC = () => {
     <motion.div className="w-full max-w-4xl mx-auto px-4 sm:px-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.4 }}>
       <div className="text-center mb-6">
         <div className="inline-flex items-center px-4 py-2 gap-2">
-          <span>$</span><span className="font-mono text-zinc-100">{typedCommand}</span>
+          <span>$</span><span className="font-mono text-zinc-50">{typedCommand}</span>
         </div>
         <AnimatePresence mode="wait" initial={false}>
           <motion.p

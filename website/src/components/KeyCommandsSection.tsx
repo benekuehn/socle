@@ -76,7 +76,7 @@ export function KeyCommandsSection() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ duration: 0.6 }}
-        className="text-3xl font-bold text-center mb-12"
+        className="text-3xl font-bold text-center mb-12 text-zinc-300"
       >
         Key Commands
       </motion.h2>
