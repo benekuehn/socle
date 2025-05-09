@@ -19,13 +19,14 @@ const paragraphs = [
 ]
 
 const STEP_HEIGHT = 0.7; // as fraction of viewport height
-const TOP_SPACER = 0.5; // as fraction of viewport height
-const BOTTOM_SPACER = 0.4; // as fraction of viewport height
+const TOP_SPACER = 0.01;
+const BOTTOM_SPACER = STEP_HEIGHT;
 const BREAK = 60; // px, the break before the next paragraph takes over
 
 export function StackedBranchesSection() {
+  const sectionRef = useRef<HTMLDivElement>(null);
   const triggerRefs = paragraphs.map(() => useRef<HTMLDivElement>(null));
-  const [visibleIdx, setVisibleIdx] = useState<number|null>(0);
+  const [visibleIdx, setVisibleIdx] = useState<number|null>(null);
 
   // Calculate total height for the stepper region
   const totalHeight = typeof window !== 'undefined'
@@ -55,7 +56,7 @@ export function StackedBranchesSection() {
           break;
         }
       }
-      // Special case: before the first trigger, show the first paragraph
+      // Special case: before the first trigger, show the first paragraph (for scroll-in effect)
       if (offsets[0] - center > 0) {
         found = 0;
       }
@@ -67,11 +68,11 @@ export function StackedBranchesSection() {
   }, [triggerRefs]);
 
   return (
-    <section className="relative w-full bg-zinc-950" style={totalHeight ? { height: totalHeight } : { minHeight: '100vh' }}>
+    <section ref={sectionRef} className="relative w-full bg-zinc-950" style={totalHeight ? { height: totalHeight } : { minHeight: '100vh' }}>
       <div className="max-w-6xl mx-auto grid md:grid-cols-2 h-full">
         {/* Left column: sticky and centered for the whole region */}
         <div className="h-full flex flex-col">
-          {/* Sticky, centered paragraph container */}
+          {/* Sticky, centered paragraph container (always present) */}
           <div className="sticky top-0 h-screen flex flex-col items-center justify-center pointer-events-none z-10">
             <AnimatePresence mode="wait">
               {visibleIdx !== null && (
@@ -90,11 +91,22 @@ export function StackedBranchesSection() {
             </AnimatePresence>
           </div>
           {/* Spacers and triggers in normal flow after sticky container */}
-          <div style={{ height: `${TOP_SPACER * 100}vh` }} />
-          {paragraphs.map((_, idx) => (
+          <div style={{ height: `1vh` }} />
+          {/* First trigger is very short, second is a bit longer, rest are normal */}
+          <div
+            ref={triggerRefs[0]}
+            style={{ height: `10vh` }}
+            aria-hidden
+          />
+          <div
+            ref={triggerRefs[1]}
+            style={{ height: `40vh` }}
+            aria-hidden
+          />
+          {paragraphs.slice(2).map((_, idx) => (
             <div
-              key={idx}
-              ref={triggerRefs[idx]}
+              key={idx + 2}
+              ref={triggerRefs[idx + 2]}
               style={{ height: `${STEP_HEIGHT * 100}vh` }}
               aria-hidden
             />
