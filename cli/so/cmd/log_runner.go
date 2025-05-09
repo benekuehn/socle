@@ -28,7 +28,7 @@ type logCmdRunner struct {
 }
 
 func (r *logCmdRunner) run(ctx context.Context) error {
-	currentBranch, stack, baseBranch, err := git.GetCurrentStackInfo()
+	currentBranch, stackToCurrent, baseBranch, err := git.GetCurrentStackInfo()
 	handled, processedErr := cmdutils.HandleStartupError(err, currentBranch, r.stdout, r.stderr)
 	if processedErr != nil {
 		return processedErr
@@ -36,6 +36,19 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 	if handled {
 		return nil
 	}
+
+	// Get the full stack based on the current stack's info
+	fullOrderedStack, _, err := git.GetFullStack(stackToCurrent)
+	if err != nil {
+		// Potentially handle this error more gracefully, e.g., by falling back to stackToCurrent
+		// For now, let's report it and exit, as it might indicate broken tracking.
+		_, _ = fmt.Fprintf(r.stderr, ui.Colors.FailureStyle.Render("Error: Could not determine the full stack: %v\n"), err)
+		return err
+	}
+
+	// If GetFullStack returns an empty or only base stack for some reason, but GetCurrentStackInfo succeeded,
+	// it might mean we are on the base branch itself and it's the only one.
+	// The loop condition `i >= 1` will handle fullOrderedStack having only the base.
 
 	_, _ = fmt.Fprintln(r.stdout) // Add a blank line at the beginning
 
@@ -45,12 +58,15 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 	var ghClientErr error
 	var ghClientInitialized = false
 
-	for i := len(stack) - 1; i >= 1; i-- {
-		branchName := stack[i]
-		parentName := stack[i-1]
+	// Iterate from the top of the fullOrderedStack down to the branch above the base
+	// fullOrderedStack is [base, child1, ..., topMost]
+	// So, len(fullOrderedStack)-1 is the topMost, fullOrderedStack[0] is the base.
+	for i := len(fullOrderedStack) - 1; i >= 1; i-- {
+		branchName := fullOrderedStack[i]
+		parentName := fullOrderedStack[i-1] // The parent is the one below it in the fullOrderedStack
 
 		branchIndicator := "◯"
-		if branchName == currentBranch {
+		if branchName == currentBranch { // currentBranch is from GetCurrentStackInfo
 			branchIndicator = "◉"
 		}
 		_, _ = fmt.Fprintf(r.stdout, "    %s  %s\n", branchIndicator, boldStyle.Render(branchName))
@@ -94,7 +110,8 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 	}
 
 	_, _ = fmt.Fprintln(r.stdout, "  ╭─╯")
-	_, _ = fmt.Fprintf(r.stdout, "   ~ %s\n", boldStyle.Render(baseBranch)) // Added one space before ~
+	// baseBranch is determined by GetCurrentStackInfo, which should be consistent with fullOrderedStack[0]
+	_, _ = fmt.Fprintf(r.stdout, "   ~ %s\n", boldStyle.Render(baseBranch))
 
 	_, _ = fmt.Fprintln(r.stdout) // Add a blank line at the end
 
