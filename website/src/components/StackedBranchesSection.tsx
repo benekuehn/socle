@@ -5,16 +5,16 @@ import { useRef, useEffect, useState } from "react"
 
 const paragraphs = [
   {
-    title: "Start with a Foundation",
-    content: "Begin with your main branch as the foundation. This is where your stable, production-ready code lives."
+    title: "Unlock Continuous Flow, Enhance Your Focus",
+    content: "Achieve continuous, productive flow. Stacking enables parallel work and review, eliminating waits."
   },
   {
-    title: "Stack Your Features",
-    content: "Create new branches stacked on top of each other. Each branch represents a focused feature or fix, building upon the work below it."
+    title: "Foster Clarity, Enable Better Reviews",
+    content: "Foster clarity with focused PRs. Stacking enables insightful, efficient reviews with ease."
   },
   {
-    title: "Maintain Order",
-    content: "Keep your branches organized and up-to-date. Socle helps you manage the relationships between branches and ensures they stay in sync."
+    title: "Deliver Value Sooner, Build Momentum",
+    content: "Ship value incrementally. Stacking enables shared team momentum and confident, progressive achievements."
   }
 ]
 
@@ -23,10 +23,85 @@ const TOP_SPACER = 0.01;
 const BOTTOM_SPACER = STEP_HEIGHT;
 const BREAK = 60; // px, the break before the next paragraph takes over
 
+const BaseSVG = () => (
+  <svg width="392" height="256" viewBox="0 0 392 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M390.998 111.714L196 225.167L1.00098 111.714L196 0.575195L390.998 111.714Z" fill="url(#paint0_linear_1_123)" stroke="url(#paint1_linear_1_123)"/>
+    <path d="M0 111.709L196 225.745V256L0 141.963V111.709Z" fill="url(#paint2_linear_1_123)"/>
+    <path d="M196 256L392 141.964V111.709L196 225.745V256Z" fill="url(#paint3_linear_1_123)"/>
+    <defs>
+      <linearGradient id="paint0_linear_1_123" x1="196" y1="0" x2="196" y2="257" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#8C8C8C"/>
+        <stop offset="1" stopColor="#2A2A2A"/>
+      </linearGradient>
+      <linearGradient id="paint1_linear_1_123" x1="196" y1="0" x2="196" y2="225.745" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#444444"/>
+        <stop offset="0.153846" stopOpacity="0"/>
+      </linearGradient>
+      <linearGradient id="paint2_linear_1_123" x1="98" y1="111.709" x2="98" y2="256" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#252525"/>
+        <stop offset="1" stopColor="#ACACAC"/>
+      </linearGradient>
+      <linearGradient id="paint3_linear_1_123" x1="196" y1="-3.51021e-05" x2="304.5" y2="190.5" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#8C8C8C"/>
+        <stop offset="1" stopColor="#2A2A2A"/>
+      </linearGradient>
+    </defs>
+  </svg>
+)
+
+const MiddleSVG = () => (
+  <svg width="300" height="196" viewBox="0 0 300 196" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M298.331 85.1152L150 171.418L1.66766 85.1162L150 0.575195L298.331 85.1152Z" fill="url(#paint0_linear_1_127)" stroke="url(#paint1_linear_1_127)"/>
+    <path d="M0.666626 85.1113L150 171.996V195.047L0.666626 108.162V85.1113Z" fill="url(#paint2_linear_1_127)"/>
+    <path d="M150 195.047L299.333 108.163V85.1115L150 171.996V195.047Z" fill="url(#paint3_linear_1_127)"/>
+    <defs>
+      <linearGradient id="paint0_linear_1_127" x1="150" y1="0" x2="150" y2="257.5" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#9C9C9C"/>
+        <stop offset="1" stopColor="#2A2A2A"/>
+      </linearGradient>
+      <linearGradient id="paint1_linear_1_127" x1="150" y1="0" x2="150" y2="171.997" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#444444"/>
+        <stop offset="0.153846" stopOpacity="0"/>
+      </linearGradient>
+      <linearGradient id="paint2_linear_1_127" x1="75.3333" y1="85.1113" x2="75.3333" y2="195.047" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#252525"/>
+        <stop offset="1" stopColor="#ACACAC"/>
+      </linearGradient>
+      <linearGradient id="paint3_linear_1_127" x1="268" y1="175.5" x2="150" y2="1.00007" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#2A2A2A"/>
+        <stop offset="1" stopColor="#9C9C9C"/>
+      </linearGradient>
+    </defs>
+  </svg>
+)
+
+const TopSVG = () => (
+  <svg width="216" height="141" viewBox="0 0 216 141" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M108 0L215.333 61.174L108 123.622L0.666687 61.174L108 0Z" fill="url(#paint0_linear_1_131)"/>
+    <path d="M0.666687 61.1738L108 123.622V140.19L0.666687 77.7417V61.1738Z" fill="url(#paint1_linear_1_131)"/>
+    <path d="M108 140.191L215.333 77.742V61.1741L108 123.623V140.191Z" fill="url(#paint2_linear_1_131)"/>
+    <defs>
+      <linearGradient id="paint0_linear_1_131" x1="108" y1="0" x2="108" y2="257" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#ACACAC"/>
+        <stop offset="1" stopColor="#2A2A2A"/>
+      </linearGradient>
+      <linearGradient id="paint1_linear_1_131" x1="54.3334" y1="61.1738" x2="54.3334" y2="140.19" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#252525"/>
+        <stop offset="1" stopColor="#ACACAC"/>
+      </linearGradient>
+      <linearGradient id="paint2_linear_1_131" x1="196.5" y1="181" x2="108.37" y2="0.709889" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#2A2A2A"/>
+        <stop offset="1" stopColor="#ACACAC"/>
+      </linearGradient>
+    </defs>
+  </svg>
+)
+
 export function StackedBranchesSection() {
   const sectionRef = useRef<HTMLDivElement>(null);
   const triggerRefs = paragraphs.map(() => useRef<HTMLDivElement>(null));
   const [visibleIdx, setVisibleIdx] = useState<number|null>(null);
+  const [middleVisible, setMiddleVisible] = useState(false);
 
   // Calculate total height for the stepper region
   const totalHeight = typeof window !== 'undefined'
@@ -67,8 +142,17 @@ export function StackedBranchesSection() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [triggerRefs]);
 
+  useEffect(() => {
+    if (visibleIdx !== null && visibleIdx >= 1 && !middleVisible) {
+      setMiddleVisible(true);
+    }
+    if (visibleIdx !== null && visibleIdx < 1 && middleVisible) {
+      setMiddleVisible(false);
+    }
+  }, [visibleIdx, middleVisible]);
+
   return (
-    <section ref={sectionRef} className="relative w-full bg-zinc-950" style={totalHeight ? { height: totalHeight } : { minHeight: '100vh' }}>
+    <section ref={sectionRef} className="relative w-full bg-zinc-950" >
       <div className="w-full flex justify-center pt-10 relative z-100 -mb-64">
         <motion.h2
           initial={{ opacity: 0, y: 20 }}
@@ -126,10 +210,49 @@ export function StackedBranchesSection() {
         {/* Right column: sticky and centered for the whole region */}
         <div className="h-full flex flex-col">
           <div className="sticky top-0 h-screen flex flex-col items-center justify-center">
-            <div className="relative w-64 h-96 flex items-center justify-center">
-              <div className="absolute inset-0 bg-zinc-800 rounded-lg border border-zinc-700" />
-              <div className="absolute inset-0 bg-zinc-700 rounded-lg border border-zinc-600" />
-              <div className="absolute inset-0 bg-zinc-600 rounded-lg border border-zinc-500" />
+            <div className="relative w-96 h-64 flex items-center justify-center">
+              {/* Base layer: always present, only animates in on first appearance */}
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="absolute left-1/2 top-0 -translate-x-1/2"
+                style={{ zIndex: 1 }}
+              >
+                <BaseSVG />
+              </motion.div>
+              {/* Middle layer: robust visibility, only animates out when returning to first text */}
+              <AnimatePresence>
+                {middleVisible && (
+                  <motion.div
+                    key="middle"
+                    initial={{ opacity: 0, y: -40 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -40 }}
+                    transition={{ duration: 0.5, delay: 0.1 }}
+                    className="absolute left-1/2 top-0 -translate-x-1/2"
+                    style={{ zIndex: 2 }}
+                  >
+                    <MiddleSVG />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              {/* Top layer: animate in/out only for third paragraph */}
+              <AnimatePresence>
+                {visibleIdx !== null && visibleIdx >= 2 && (
+                  <motion.div
+                    key="top"
+                    initial={{ opacity: 0, y: -50 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -50 }}
+                    transition={{ duration: 0.5, delay: 0.2 }}
+                    className="absolute left-1/2 top-0 -translate-x-1/2"
+                    style={{ zIndex: 3 }}
+                  >
+                    <TopSVG />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>

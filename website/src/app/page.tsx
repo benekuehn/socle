@@ -10,8 +10,8 @@ export default function Home() {
       <main className="flex-1">
         <HeroSection />
         <TerminalDemo />
-        <KeyCommandsSection />
         <StackedBranchesSection />
+        <KeyCommandsSection />
         <CtaSection />
       </main>
     </div>
