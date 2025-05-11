@@ -6,7 +6,7 @@ import { LinkOutButton } from "./LinkOutButton"
 
 export function CtaSection() {
   return (
-    <section className="container mx-auto px-4 py-16 flex flex-col items-center text-center">
+    <section className="container mx-auto px-4 flex flex-col items-center justify-center text-center h-screen">
       <motion.div
        initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}

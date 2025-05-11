@@ -3,7 +3,6 @@
 import { motion } from "framer-motion"
 import { CommandBox } from "./CommandBox"
 import { ArrowRight } from "lucide-react"
-import { useRef, useEffect, useState } from "react"
 
 const commands = [
   {
@@ -25,51 +24,11 @@ const commands = [
 ]
 
 export function KeyCommandsSection() {
-  const sectionRef = useRef<HTMLElement>(null);
-  const [sectionStyle, setSectionStyle] = useState<React.CSSProperties>({});
-
-  useEffect(() => {
-    const calculatePosition = () => {
-      if (!sectionRef.current) return;
-
-      const terminalElement = document.querySelector('[data-terminal-demo]');
-      if (!terminalElement) return;
-
-      const terminalRect = terminalElement.getBoundingClientRect();
-      const viewportHeight = window.innerHeight;
-      const availableSpace = viewportHeight - terminalRect.bottom;
-      const MIN_SPACE = 100; // Minimum space we want between terminal and commands
-      const MAX_SPACE = 200; // Maximum space before we force above fold
-
-      if (availableSpace < MIN_SPACE) {
-        // Not enough space, position below fold
-        setSectionStyle({
-          marginTop: `${window.innerHeight - terminalRect.top + 16}px`
-        });
-      } else if (availableSpace > MAX_SPACE) {
-        // Too much space, use normal margin
-        setSectionStyle({
-          marginTop: '4rem' // 64px, equivalent to py-16
-        });
-      } else {
-        // Space is just right, use available space
-        setSectionStyle({
-          marginTop: `${availableSpace - 100}px` // 100px buffer
-        });
-      }
-    };
-
-    calculatePosition();
-    window.addEventListener('resize', calculatePosition);
-    return () => window.removeEventListener('resize', calculatePosition);
-  }, []);
 
   return (
-    <section 
-      ref={sectionRef}
+    <section
       id="commands" 
-      className="container mx-auto px-4 py-16"
-      style={sectionStyle}
+      className="container mx-auto px-4 h-screen"
     >
       <motion.h2
         initial={{ opacity: 0, y: 20 }}

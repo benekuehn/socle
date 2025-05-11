@@ -2,11 +2,12 @@
 import { motion } from "framer-motion"
 import { BrewButton } from "./BrewButton"
 import { LinkOutButton } from "./LinkOutButton"
+import { TerminalDemo } from "./TerminalDemo"
 
 
 export default function HeroSection() {
   return (
-    <section className="container mx-auto pt-20 pb-8 md:pt-32 md:pb-10 flex flex-col items-center">
+    <section className="container mx-auto pt-20 pb-8 md:pt-32 md:pb-10 flex flex-col items-center h-screen">
       <div className="max-w-3xl text-center">
         <motion.h1
           className="text-4xl md:text-6xl font-bold tracking-tight mb-6 text-zinc-100"
@@ -34,6 +35,8 @@ export default function HeroSection() {
           </LinkOutButton>
         </motion.div>
       </div>
+
+      <TerminalDemo />
     </section>
   )
 }

@@ -9,7 +9,6 @@ export default function Home() {
     <div className="flex min-h-screen flex-col bg-zinc-950 text-zinc-400">
       <main className="flex-1">
         <HeroSection />
-        <TerminalDemo />
         <StackedBranchesSection />
         <KeyCommandsSection />
         <CtaSection />

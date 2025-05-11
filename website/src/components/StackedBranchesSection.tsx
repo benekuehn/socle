@@ -176,10 +176,24 @@ export function StackedBranchesSection() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.3 }}
-                  className="space-y-4 text-center pointer-events-auto"
+                  className="space-y-4 text-center pointer-events-auto flex flex-col items-center mt-8"
                 >
                   <h3 className="text-xl font-semibold text-zinc-200">{paragraphs[visibleIdx].title}</h3>
                   <p className="text-zinc-400 max-w-md mx-auto">{paragraphs[visibleIdx].content}</p>
+                  <div style={{ height: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {visibleIdx === 2 && (
+                      <motion.a
+                        href="#"
+                        className="text-zinc-300 hover:text-white transition-colors"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        transition={{ duration: 0.3, delay: 0.2 }}
+                      >
+                        Learn more →
+                      </motion.a>
+                    )}
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
