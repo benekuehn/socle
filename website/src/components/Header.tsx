@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Logo } from './Logo';
 
 export default function Header() {
   return (
@@ -7,7 +8,7 @@ export default function Header() {
         <div className="flex justify-between items-center h-16">
           <Link href="/" className="flex items-center hover:opacity-80 transition-opacity">
             <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-zinc-800 rounded-full mr-2" /> {/* Logo placeholder */}
+              <Logo className="mr-2" />
             </div>
             <div className="ml-2">
               <span className="font-bold text-xl text-zinc-100">Socle</span>
