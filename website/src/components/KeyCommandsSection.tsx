@@ -3,6 +3,7 @@
 import { motion } from "framer-motion"
 import { CommandBox } from "./CommandBox"
 import { ArrowRight } from "lucide-react"
+import { InternalLink } from "./InternalLink"
 
 const commands = [
   {
@@ -56,13 +57,12 @@ export function KeyCommandsSection() {
         transition={{ duration: 0.5, delay: 0.2 }}
         className="text-center mt-10"
       >
-        <a
-          href="https://github.com/benekuehn/socle"
-          className="inline-flex items-center text-zinc-400 hover:text-white transition-colors"
+        <InternalLink
+          href="/docs/commands"
+          className="inline-flex items-center"
         >
           View all commands
-          <ArrowRight className="ml-2 h-4 w-4" />
-        </a>
+        </InternalLink>
       </motion.div>
     </section>
   )

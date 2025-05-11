@@ -8,7 +8,7 @@ import { TerminalDemo } from "./TerminalDemo"
 export default function HeroSection() {
   return (
     <section className="container mx-auto pt-20 pb-8 md:pt-32 md:pb-10 flex flex-col items-center h-screen">
-      <div className="max-w-3xl text-center">
+      <div className="max-w-3xl text-center pb-16">
         <motion.h1
           className="text-4xl md:text-6xl font-bold tracking-tight mb-6 text-zinc-100"
           initial={{ opacity: 0, y: 20 }}

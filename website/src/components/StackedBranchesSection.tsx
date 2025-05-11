@@ -2,6 +2,8 @@
 
 import { motion, AnimatePresence } from "framer-motion"
 import { useRef, useEffect, useState } from "react"
+import Link from "next/link"
+import { InternalLink } from "./InternalLink"
 
 const paragraphs = [
   {
@@ -103,11 +105,6 @@ export function StackedBranchesSection() {
   const [visibleIdx, setVisibleIdx] = useState<number|null>(null);
   const [middleVisible, setMiddleVisible] = useState(false);
 
-  // Calculate total height for the stepper region
-  const totalHeight = typeof window !== 'undefined'
-    ? window.innerHeight * (TOP_SPACER + STEP_HEIGHT * paragraphs.length + BOTTOM_SPACER)
-    : undefined;
-
   useEffect(() => {
     const handleScroll = () => {
       const center = window.innerHeight / 2;
@@ -164,9 +161,7 @@ export function StackedBranchesSection() {
         </motion.h2>
       </div>
       <div className="max-w-6xl mx-auto grid md:grid-cols-2 h-full">
-        {/* Left column: sticky and centered for the whole region */}
         <div className="h-full flex flex-col">
-          {/* Sticky, centered paragraph container (always present) */}
           <div className="sticky top-0 h-screen flex flex-col items-center justify-center pointer-events-none z-10">
             <AnimatePresence mode="wait">
               {visibleIdx !== null && (
@@ -182,25 +177,18 @@ export function StackedBranchesSection() {
                   <p className="text-zinc-400 max-w-md mx-auto">{paragraphs[visibleIdx].content}</p>
                   <div style={{ height: '2.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {visibleIdx === 2 && (
-                      <motion.a
-                        href="#"
-                        className="text-zinc-300 hover:text-white transition-colors"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 10 }}
-                        transition={{ duration: 0.3, delay: 0.2 }}
-                      >
-                        Learn more →
-                      </motion.a>
+                      <motion.div>
+                        <InternalLink href="/why-stacking-branches">
+                          Learn more about stacking
+                        </InternalLink>
+                      </motion.div>
                     )}
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
-          {/* Spacers and triggers in normal flow after sticky container */}
           <div style={{ height: `1vh` }} />
-          {/* First trigger is very short, second is a bit longer, rest are normal */}
           <div
             ref={triggerRefs[0]}
             style={{ height: `0.5vh` }}
@@ -221,11 +209,9 @@ export function StackedBranchesSection() {
           ))}
           <div style={{ height: `${BOTTOM_SPACER * 100}vh` }} />
         </div>
-        {/* Right column: sticky and centered for the whole region */}
         <div className="h-full flex flex-col">
           <div className="sticky top-0 h-screen flex flex-col items-center justify-center">
             <div className="relative w-96 h-64 flex items-center justify-center">
-              {/* Base layer: always present, only animates in on first appearance */}
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -235,7 +221,6 @@ export function StackedBranchesSection() {
               >
                 <BaseSVG />
               </motion.div>
-              {/* Middle layer: robust visibility, only animates out when returning to first text */}
               <AnimatePresence>
                 {middleVisible && (
                   <motion.div
@@ -251,7 +236,6 @@ export function StackedBranchesSection() {
                   </motion.div>
                 )}
               </AnimatePresence>
-              {/* Top layer: animate in/out only for third paragraph */}
               <AnimatePresence>
                 {visibleIdx !== null && visibleIdx >= 2 && (
                   <motion.div
