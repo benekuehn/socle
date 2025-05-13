@@ -80,12 +80,7 @@ func GetMultipleBranchCommits(branchNames []string) (map[string]string, error) {
 	}
 
 	args := []string{"rev-parse"}
-	for _, branchName := range branchNames {
-		// Ensure we are asking for the local branch ref, e.g., refs/heads/mybranch
-		// However, git rev-parse typically resolves simple branch names correctly.
-		// For robustness with GetCurrentBranchCommit, it uses refs/heads/. We can just pass branchName.
-		args = append(args, branchName)
-	}
+	args = append(args, branchNames...)
 
 	output, err := RunGitCommand(args...)
 	if err != nil {

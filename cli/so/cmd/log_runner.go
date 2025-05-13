@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"strings"
+	"sync"
 
 	"github.com/benekuehn/socle/cli/so/internal/cmdutils"
 	"github.com/benekuehn/socle/cli/so/internal/gh"
@@ -106,40 +107,10 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 		return err
 	}
 
-	boldStyle := lipgloss.NewStyle().Bold(true)
-	boldRenderer := func(s string) string { return boldStyle.Render(s) }
-
-	// Initialize GitHub client once.
-	var ghClient *gh.Client
-	var ghClientInitError error
-	remoteName := "origin"
-	remoteURL, errURL := git.GetRemoteURL(remoteName)
-	if errURL != nil {
-		ghClientInitError = fmt.Errorf("cannot get remote URL '%s': %w", remoteName, errURL)
-	} else {
-		owner, repoName, errParse := git.ParseOwnerAndRepo(remoteURL)
-		if errParse != nil {
-			ghClientInitError = fmt.Errorf("cannot parse owner/repo from '%s': %w", remoteURL, errParse)
-		} else {
-			client, errCli := gh.NewClient(ctx, owner, repoName)
-			if errCli != nil {
-				ghClientInitError = fmt.Errorf("GitHub client init failed: %w", errCli)
-			} else {
-				ghClient = client
-			}
-		}
-	}
-
-	if ghClientInitError != nil {
-		_, _ = fmt.Fprintf(r.stderr, ui.Colors.WarningStyle.Render("Warning: GitHub client initialization failed: %v\nPR statuses may not be available.\n"), ghClientInitError)
-	}
-
 	numBranchesInStack := len(fullOrderedStack) - 1
 	if numBranchesInStack < 0 {
 		numBranchesInStack = 0
 	}
-
-	branchInfos := make([]branchLogInfo, 0, numBranchesInStack)
 
 	// Pre-fetch all parent OIDs for branches in the stack to reduce git calls
 	parentOIDs := make(map[string]string)
@@ -167,31 +138,101 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 		}
 	}
 
+	var ghClient *gh.Client
+	var ghClientInitError error
+	remoteName := "origin"
+	remoteURL, errURL := git.GetRemoteURL(remoteName)
+	if errURL != nil {
+		ghClientInitError = fmt.Errorf("cannot get remote URL '%s': %w", remoteName, errURL)
+	} else {
+		owner, repoName, errParse := git.ParseOwnerAndRepo(remoteURL)
+		if errParse != nil {
+			ghClientInitError = fmt.Errorf("cannot parse owner/repo from '%s': %w", remoteURL, errParse)
+		} else {
+			client, errCli := gh.NewClient(ctx, owner, repoName)
+			if errCli != nil {
+				ghClientInitError = fmt.Errorf("GitHub client init failed: %w", errCli)
+			} else {
+				ghClient = client
+			}
+		}
+	}
+
+	if ghClientInitError != nil {
+		_, _ = fmt.Fprintf(r.stderr, ui.Colors.WarningStyle.Render("Warning: GitHub client initialization failed: %v\nPR statuses may not be available.\n"), ghClientInitError)
+	}
+
+	// Process branches in parallel
+	branchInfos := make([]branchLogInfo, 0, numBranchesInStack)
+	var wg sync.WaitGroup
+	results := make(map[string]string)
+	var mu sync.Mutex
+
+	// Process each branch in parallel
+	for i := len(fullOrderedStack) - 1; i >= 1; i-- {
+		branchName := fullOrderedStack[i]
+		wg.Add(1)
+		go func(branch string) {
+			defer wg.Done()
+			prNumber, err := git.GetStoredPRNumber(branch)
+			var status string
+			if err != nil || prNumber == 0 {
+				status = "No PR"
+			} else if ghClient != nil {
+				prStatus, _, err := ghClient.GetPullRequestStatus(prNumber)
+				if err != nil {
+					status = fmt.Sprintf("⚠️ PR check failed: %v", err)
+				} else {
+					switch prStatus {
+					case gh.PRStatusOpen:
+						status = "Open PR"
+					case gh.PRStatusDraft:
+						status = "Draft PR"
+					case gh.PRStatusMerged:
+						status = "Merged PR"
+					case gh.PRStatusClosed:
+						status = "Closed PR"
+					case gh.PRStatusNotFound:
+						status = "No PR"
+					default:
+						status = fmt.Sprintf("Unknown PR state: %s", prStatus)
+					}
+				}
+			} else {
+				status = "⚠️ PR client N/A"
+			}
+
+			mu.Lock()
+			results[branch] = status
+			mu.Unlock()
+		}(branchName)
+	}
+
+	// Wait for all PR checks to complete
+	wg.Wait()
+
+	// Process branches in order
 	for i := len(fullOrderedStack) - 1; i >= 1; i-- {
 		branchName := fullOrderedStack[i]
 		parentName := fullOrderedStack[i-1]
+		parentOID := parentOIDs[parentName]
 
-		parentOID, ok := parentOIDs[parentName]
-		if !ok {
-			parentOID = ""
-			_, _ = fmt.Fprintf(r.stderr, ui.Colors.WarningStyle.Render("Warning: Parent OID for '%s' not found after pre-fetch. Rebase status for '%s' may be incorrect.\n"), parentName, branchName)
-		}
-
+		// Get rebase status
 		rebaseStatusResult := getRebaseStatus(parentName, branchName, parentOID, r.stderr)
 		needsRebase := rebaseStatusResult.text == "(Needs Restack)"
 
-		initialPrText := "⏳ Loading PR..."
-		if ghClient == nil {
-			initialPrText = "⚠️ PR client N/A"
-		}
+		// Get PR status from results
+		prStatus := results[branchName]
 
-		branchInfos = append(branchInfos, branchLogInfo{
+		// Create branch info
+		info := branchLogInfo{
 			branchName:      branchName,
 			parentName:      parentName,
 			needsRebase:     needsRebase,
-			branchNameStyle: boldRenderer,
-			prText:          initialPrText,
-		})
+			branchNameStyle: func(s string) string { return lipgloss.NewStyle().Bold(true).Render(s) },
+			prText:          prStatus,
+		}
+		branchInfos = append(branchInfos, info)
 	}
 
 	// Create a new list

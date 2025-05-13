@@ -67,11 +67,8 @@ func GetCurrentStackInfo() (currentBranch string, stack []string, baseBranch str
 	stack = []string{currentBranch} // Start with the current branch
 	currentInLoop := currentBranch  // Start the walk from the current branch
 
-	for {
+	for currentInLoop != baseBranch {
 		// If currentInLoop is already the baseBranch, we stop. This happens if currentBranch's parent is the base.
-		if currentInLoop == baseBranch {
-			break
-		}
 
 		// Get the parent of the 'currentInLoop' branch in the walk-up
 		currentParentKey := fmt.Sprintf("branch.%s.socle-parent", currentInLoop)

@@ -179,10 +179,17 @@ func NewClient(ctx context.Context, owner, repo string) (*Client, error) {
 	slog.Debug("Using token for GitHub client.", "auth_method", authMethod)
 
 	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	tc := oauth2.NewClient(ctx, ts)
+	transport := &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 100,
+		IdleConnTimeout:     90 * time.Second,
+	}
 	httpClientWithTimeout := &http.Client{
-		Transport: tc.Transport,
-		Timeout:   15 * time.Second, // Consider making timeout configurable
+		Transport: &oauth2.Transport{
+			Base:   transport,
+			Source: ts,
+		},
+		Timeout: 15 * time.Second,
 	}
 	ghClient := github.NewClient(httpClientWithTimeout)
 
