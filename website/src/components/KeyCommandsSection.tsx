@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion"
 import { CommandBox } from "./CommandBox"
-import { ArrowRight } from "lucide-react"
 import { InternalLink } from "./InternalLink"
 
 const commands = [
@@ -28,8 +27,8 @@ export function KeyCommandsSection() {
 
   return (
     <section
-      id="commands" 
-      className="container mx-auto px-4 h-screen"
+      id="commands"
+      className="container mx-auto px-4 h-1/2-screen"
     >
       <motion.h2
         initial={{ opacity: 0, y: 20 }}
@@ -66,4 +65,4 @@ export function KeyCommandsSection() {
       </motion.div>
     </section>
   )
-} 
+}

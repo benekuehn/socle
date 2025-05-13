@@ -1,4 +1,13 @@
 import { CtaSection } from "@/components/CtaSection";
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: 'Understanding stacked branches',
+  description: 'Learn what stacked branches are, their benefits for Git/GitHub workflows (focused PRs, faster reviews), and how Socle helps enable effortless flow.',
+  openGraph: {
+type: 'article',
+    },
+}
 
 export default function WhyStackingBranches() {
   return (
@@ -13,7 +22,7 @@ export default function WhyStackingBranches() {
         <div className="prose prose-invert max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-p:leading-relaxed prose-p:text-zinc-300 prose-strong:text-zinc-100 prose-a:text-zinc-100 prose-a:no-underline hover:prose-a:underline">
           <section id="intro" className="mb-16">
             <p className="text-lg mb-8 leading-relaxed">
-              In the journey of software development, maintaining momentum while ensuring code quality is paramount. Large, monolithic pull requests can often hinder this, leading to lengthy review cycles and a disrupted development rhythm. Discover a more considered approach: stacked branches, also known as stacked diffs or stacked changes. This purposeful methodology empowers you to break down complex features into a series of manageable, reviewable units, fostering a state of continuous, productive flow. It's an approach refined and extensively used by companies like Google and Meta to manage complexity and accelerate development at scale.
+              In the journey of software development, maintaining momentum while ensuring code quality is paramount. Large, monolithic pull requests can often hinder this, leading to lengthy review cycles and a disrupted development rhythm. Discover a more considered approach: stacked branches, also known as stacked diffs or stacked changes. This purposeful methodology empowers you to break down complex features into a series of manageable, reviewable units, fostering a state of continuous, productive flow. It&apos;s an approach refined and extensively used by companies like Google and Meta to manage complexity and accelerate development at scale.
             </p>
             <p className="mb-6 text-lg">This page will guide you through understanding:</p>
             <ul className="space-y-3 text-lg">
@@ -30,13 +39,13 @@ export default function WhyStackingBranches() {
               Imagine building a complex feature. Instead of one massive branch with dozens of commits, stacked branches involve creating a sequence of smaller, dependent branches. Each branch in the stack builds upon the previous one, containing a distinct, logical piece of the larger feature.
             </p>
             <p className="text-lg leading-relaxed">
-              Think of it as writing a book chapter by chapter, rather than all at once. Each "chapter" (branch) can be reviewed and refined independently, yet contributes to the cohesive whole. With stacked diffs in Git, each branch represents a focused set of changes, making the review process more insightful and efficient.
+              Think of it as writing a book chapter by chapter, rather than all at once. Each &quot;chapter&quot; (branch) can be reviewed and refined independently, yet contributes to the cohesive whole. With stacked diffs in Git, each branch represents a focused set of changes, making the review process more insightful and efficient.
             </p>
           </section>
 
           <section id="benefits" className="mb-16">
             <h2 className="text-3xl font-bold mb-8 text-zinc-100 tracking-tight">The Quiet Confidence of Stacking: Key Benefits</h2>
-            <p className="mb-8 text-lg leading-relaxed">Adopting a stacked changes workflow isn't just about a new Git strategy; it's about enabling a more thoughtful and productive development experience.</p>
+            <p className="mb-8 text-lg leading-relaxed">Adopting a stacked changes workflow isn&apos;t just about a new Git strategy; it&apos;s about enabling a more thoughtful and productive development experience.</p>
             <ul className="space-y-6">
               <li className="flex flex-col">
                 <strong className="text-xl text-zinc-100 mb-2">Focused Pull Requests, Better Reviews</strong>
@@ -79,11 +88,11 @@ export default function WhyStackingBranches() {
               </li>
               <li className="flex flex-col">
                 <strong className="text-xl text-zinc-100 mb-2">Continue Stacking</strong>
-                <span className="text-lg leading-relaxed">Repeat this process, creating a "stack" of branches, each dependent on the last.</span>
+                <span className="text-lg leading-relaxed">Repeat this process, creating a &quot;stack&quot; of branches, each dependent on the last.</span>
               </li>
               <li className="flex flex-col">
                 <strong className="text-xl text-zinc-100 mb-2">Pull Requests on GitHub</strong>
-                <span className="text-lg leading-relaxed">For each branch in your stack, you'll open a separate Pull Request on GitHub. It's helpful to indicate the dependency or order in your PR descriptions (e.g., "Part 1 of Feature X," "Builds on #123").</span>
+                <span className="text-lg leading-relaxed">For each branch in your stack, you&apos;ll open a separate Pull Request on GitHub. It&apos;s helpful to indicate the dependency or order in your PR descriptions (e.g., &quot;Part 1 of Feature X,&quot; &quot;Builds on #123&quot;).</span>
               </li>
               <li className="flex flex-col">
                 <strong className="text-xl text-zinc-100 mb-2">Review and Merge</strong>
@@ -134,7 +143,7 @@ export default function WhyStackingBranches() {
                   <tr className="border-b border-zinc-800">
                     <td className="py-4 px-6"><strong className="text-zinc-100">Code Merging</strong></td>
                     <td className="py-4 px-6">Incremental, manageable</td>
-                    <td className="py-4 px-6">"Big bang" merge, potentially difficult</td>
+                    <td className="py-4 px-6">&quot;Big bang&quot; merge, potentially difficult</td>
                   </tr>
                 </tbody>
               </table>
@@ -147,15 +156,15 @@ export default function WhyStackingBranches() {
             <p className="mb-8 text-lg leading-relaxed">While the foundational principles of stacked diffs can be applied with core Git commands, purpose-built tools can make this powerful workflow feel truly effortless and intuitive. They handle the operational complexities, allowing you to focus on what you do best: crafting quality code.</p>
 
             <h3 className="text-2xl font-semibold mb-6 text-zinc-100 tracking-tight"><span className="text-zinc-100">Socle:</span> Simple, Elegant Stacking – No Fuss.</h3>
-            <p className="mb-8 text-lg leading-relaxed"><span className="text-zinc-100">Socle</span> is designed with a singular focus: to make the sophisticated workflow of stacked diffs remarkably simple and seamlessly integrated into your daily development. We believe powerful tools don't need to be complicated.</p>
+            <p className="mb-8 text-lg leading-relaxed"><span className="text-zinc-100">Socle</span> is designed with a singular focus: to make the sophisticated workflow of stacked diffs remarkably simple and seamlessly integrated into your daily development. We believe powerful tools don&apos;t need to be complicated.</p>
             <ul className="space-y-6 mb-12">
               <li className="flex flex-col">
                 <strong className="text-xl text-zinc-100 mb-2">Truly Open & Adaptable</strong>
-                <span className="text-lg leading-relaxed">As a fully open-source solution under the permissive MIT license, <span className="text-zinc-100">Socle</span> empowers individuals and teams everywhere. It's free to use, modify, and enhance, ensuring it can be tailored to your specific needs.</span>
+                <span className="text-lg leading-relaxed">As a fully open-source solution under the permissive MIT license, <span className="text-zinc-100">Socle</span> empowers individuals and teams everywhere. It&apos;s free to use, modify, and enhance, ensuring it can be tailored to your specific needs.</span>
               </li>
               <li className="flex flex-col">
                 <strong className="text-xl text-zinc-100 mb-2">Effortless by Design</strong>
-                <span className="text-lg leading-relaxed"><span className="text-zinc-100">Socle</span> offers an elegant solution with simple, intuitive commands. It's built to get out of your way, enabling a natural, productive flow without a steep learning curve.</span>
+                <span className="text-lg leading-relaxed"><span className="text-zinc-100">Socle</span> offers an elegant solution with simple, intuitive commands. It&apos;s built to get out of your way, enabling a natural, productive flow without a steep learning curve.</span>
               </li>
               <li className="flex flex-col">
                 <strong className="text-xl text-zinc-100 mb-2">Powerful Yet Uncomplicated</strong>
@@ -178,7 +187,7 @@ export default function WhyStackingBranches() {
             <p className="mb-8 text-lg leading-relaxed">Transitioning to a stacked workflow can be a gradual process:</p>
             <ol className="space-y-6 list-decimal pl-6">
               <li className="flex flex-col">
-                <strong className="text-xl text-zinc-100 mb-2">Understand the "Why"</strong>
+                <strong className="text-xl text-zinc-100 mb-2">Understand the &quot;Why</strong>
                 <span className="text-lg leading-relaxed">Ensure you and your team appreciate the benefits of smaller, focused PRs and iterative development.</span>
               </li>
               <li className="flex flex-col">
@@ -202,7 +211,7 @@ export default function WhyStackingBranches() {
 
           <section id="conclusion">
             <h2 className="text-3xl font-bold mb-8 text-zinc-100 tracking-tight">Embrace the Flow of Stacked Progress</h2>
-            <p className="text-lg leading-relaxed">Stacked branches and diffs offer a considered, enabling approach to modern software development. By fostering focused pull requests, enabling better reviews, and keeping you in a state of productive flow, this workflow helps your team build complex features with greater clarity and confidence. It's about making progress thoughtfully, one well-crafted layer at a time.</p>
+            <p className="text-lg leading-relaxed">Stacked branches and diffs offer a considered, enabling approach to modern software development. By fostering focused pull requests, enabling better reviews, and keeping you in a state of productive flow, this workflow helps your team build complex features with greater clarity and confidence. It&apos;s about making progress thoughtfully, one well-crafted layer at a time.</p>
           </section>
         </div>
       </main>
@@ -210,4 +219,4 @@ export default function WhyStackingBranches() {
     </div>
 
   );
-} 
+}
