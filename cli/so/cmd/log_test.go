@@ -20,20 +20,13 @@ func stripAnsi(s string) string {
 }
 
 // Helper to build expected log output string for a branch (plain text)
-func expectedBranchOutput(indicator, branchName, rebaseStatus, prStatus string, isLast bool) string {
-	lines := []string{
-		fmt.Sprintf("    %s  %s", indicator, branchName),
-		fmt.Sprintf("    │  %s | %s", rebaseStatus, prStatus),
-	}
-	if !isLast {
-		lines = append(lines, "    │")
-	}
-	return strings.Join(lines, "\n") + "\n"
+func expectedBranchOutput(dot, branchName, status string) string {
+	return fmt.Sprintf("  %s %s %s\n", dot, branchName, status)
 }
 
 // Helper to build expected base output (plain text)
 func expectedBaseOutput(baseBranchName string) string {
-	return fmt.Sprintf("  ╭─╯\n   ~ %s\n", baseBranchName)
+	return fmt.Sprintf("  ● %s\n", baseBranchName)
 }
 
 func TestLogCommand(t *testing.T) {
@@ -45,12 +38,11 @@ func TestLogCommand(t *testing.T) {
 
 		require.NoError(t, err)
 		strippedStderr := stripAnsi(stderr)
-		// assert.Regexp(t, regexp.MustCompile(`\\[DEBUG\\] Time for GitHub client initialization: \\S+`), strippedStderr) // This line is now commented out
 		assert.Regexp(t, regexp.MustCompile(`\[DEBUG\] Total execution time for log command: \S+`), strippedStderr)
 
 		strippedStdout := stripAnsi(stdout)
 		assert.Contains(t, strippedStdout, "Currently on the base branch 'main'.")
-		assert.NotContains(t, strippedStdout, "╭─╯")
+		assert.NotContains(t, strippedStdout, "●")
 	})
 
 	t.Run("Log on untracked branch", func(t *testing.T) {
@@ -68,7 +60,7 @@ func TestLogCommand(t *testing.T) {
 		strippedStdout := stripAnsi(stdout)
 		assert.Contains(t, strippedStdout, "Branch 'feature-untracked' is not currently tracked by socle.")
 		assert.Contains(t, strippedStdout, "Use 'so track' to associate it")
-		assert.NotContains(t, strippedStdout, "╭─╯")
+		assert.NotContains(t, strippedStdout, "●")
 	})
 
 	t.Run("Log simple tracked stack (up-to-date, no PR)", func(t *testing.T) {
@@ -85,8 +77,8 @@ func TestLogCommand(t *testing.T) {
 		assert.Regexp(t, regexp.MustCompile(`\[DEBUG\] Total execution time for log command: \S+`), strippedStderr)
 
 		var expectedOutput strings.Builder
-		expectedOutput.WriteString(expectedBranchOutput("◉", "feature-b", "🤝 Up-to-date", "⚪ PR not submitted", false))
-		expectedOutput.WriteString(expectedBranchOutput("◯", "feature-a", "🤝 Up-to-date", "⚪ PR not submitted", true))
+		expectedOutput.WriteString(expectedBranchOutput("○", "feature-b", ""))
+		expectedOutput.WriteString(expectedBranchOutput("○", "feature-a", ""))
 		expectedOutput.WriteString(expectedBaseOutput("main"))
 
 		actualContent := stripAnsi(stdout)
@@ -114,8 +106,8 @@ func TestLogCommand(t *testing.T) {
 		assert.Regexp(t, regexp.MustCompile(`\[DEBUG\] Total execution time for log command: \S+`), strippedStderr)
 
 		var expectedOutput strings.Builder
-		expectedOutput.WriteString(expectedBranchOutput("◉", "feature-b", "🤝 Up-to-date", "⚪ PR not submitted", false))
-		expectedOutput.WriteString(expectedBranchOutput("◯", "feature-a", "🚧 Needs restack", "⚪ PR not submitted", true))
+		expectedOutput.WriteString(expectedBranchOutput("○", "feature-b", ""))
+		expectedOutput.WriteString(expectedBranchOutput("○", "feature-a", "(needs rebase)"))
 		expectedOutput.WriteString(expectedBaseOutput("main"))
 
 		actualContent := stripAnsi(stdout)
@@ -142,7 +134,7 @@ func TestLogCommand(t *testing.T) {
 		assert.Regexp(t, regexp.MustCompile(`\[DEBUG\] Total execution time for log command: \S+`), strippedStderr)
 
 		var expectedOutput strings.Builder
-		expectedOutput.WriteString(expectedBranchOutput("◉", "feature-a", "🤝 Up-to-date", "⚠️ PR status error", true))
+		expectedOutput.WriteString(expectedBranchOutput("○", "feature-a", ""))
 		expectedOutput.WriteString(expectedBaseOutput("main"))
 
 		actualContent := stripAnsi(stdout)
@@ -163,12 +155,11 @@ func TestLogCommand(t *testing.T) {
 
 		require.NoError(t, err)
 		strippedStderr := stripAnsi(stderr)
-		// Expect warning about parsing PR number in stderr
 		assert.Regexp(t, regexp.MustCompile(`Warning: Could not parse PR number 'not-a-number' for 'feature-a'`), strippedStderr)
 		assert.Regexp(t, regexp.MustCompile(`\[DEBUG\] Total execution time for log command: \S+`), strippedStderr)
 
 		var expectedOutput strings.Builder
-		expectedOutput.WriteString(expectedBranchOutput("◉", "feature-a", "🤝 Up-to-date", "⚠️ PR status error", true))
+		expectedOutput.WriteString(expectedBranchOutput("○", "feature-a", ""))
 		expectedOutput.WriteString(expectedBaseOutput("main"))
 
 		actualContent := stripAnsi(stdout)
@@ -178,11 +169,10 @@ func TestLogCommand(t *testing.T) {
 	})
 
 	t.Run("Log stack with current branch not at the top", func(t *testing.T) {
-		// Stack: main -> feature-parent -> feature-current -> feature-topmost
 		repoPath, cleanup := setupRepoWithStack(t, []string{"main", "feature-parent", "feature-current", "feature-topmost"})
 		defer cleanup()
 		testutils.RunCommand(t, repoPath, "git", "remote", "add", "origin", "https://github.com/example/test-repo.git")
-		testutils.RunCommand(t, repoPath, "git", "checkout", "feature-current") // Current branch
+		testutils.RunCommand(t, repoPath, "git", "checkout", "feature-current")
 
 		stdout, stderr, err := runSoCommandWithOutput(t, "log")
 
@@ -192,9 +182,9 @@ func TestLogCommand(t *testing.T) {
 		assert.Regexp(t, regexp.MustCompile(`\[DEBUG\] Total execution time for log command: \S+`), strippedStderr)
 
 		var expectedOutput strings.Builder
-		expectedOutput.WriteString(expectedBranchOutput("◯", "feature-topmost", "🤝 Up-to-date", "⚪ PR not submitted", false))
-		expectedOutput.WriteString(expectedBranchOutput("◉", "feature-current", "🤝 Up-to-date", "⚪ PR not submitted", false))
-		expectedOutput.WriteString(expectedBranchOutput("◯", "feature-parent", "🤝 Up-to-date", "⚪ PR not submitted", true))
+		expectedOutput.WriteString(expectedBranchOutput("○", "feature-topmost", ""))
+		expectedOutput.WriteString(expectedBranchOutput("○", "feature-current", ""))
+		expectedOutput.WriteString(expectedBranchOutput("○", "feature-parent", ""))
 		expectedOutput.WriteString(expectedBaseOutput("main"))
 
 		actualContent := stripAnsi(stdout)
