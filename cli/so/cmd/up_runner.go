@@ -27,44 +27,37 @@ func findIndex(slice []string, item string) int {
 }
 
 func (r *upCmdRunner) run() error {
-	// 1. Get current branch and stack info
-	currentBranch, currentStack, _, err := git.GetCurrentStackInfo()
+	// Get the complete stack info in one call
+	stackInfo, err := git.GetStackInfo()
 	if err != nil {
-		// Let GetCurrentStackInfo handle untracked errors etc.
+		// Let GetStackInfo handle untracked errors etc.
 		return err
 	}
-	r.logger.Debug("Current info", "branch", currentBranch, "stackToCurrent", currentStack)
+	r.logger.Debug("Retrieved stack info", "currentBranch", stackInfo.CurrentBranch, "fullStack", stackInfo.FullStack)
 
-	// 2. Get the full ordered stack
-	orderedStack, _, err := git.GetFullStack(currentStack)
-	if err != nil {
-		return fmt.Errorf("failed to determine full stack: %w", err)
-	}
-	r.logger.Debug("Retrieved full ordered stack", "stack", orderedStack)
-
-	// 3. Find the current branch's index in the full ordered stack
-	currentIndex := findIndex(orderedStack, currentBranch)
+	// Find the current branch's index in the full ordered stack
+	currentIndex := findIndex(stackInfo.FullStack, stackInfo.CurrentBranch)
 	if currentIndex == -1 {
-		// Should not happen if GetFullStack is correct
-		return fmt.Errorf("internal error: current branch '%s' not found in its full stack: %v", currentBranch, orderedStack)
+		// Should not happen if GetStackInfo is correct
+		return fmt.Errorf("internal error: current branch '%s' not found in its full stack: %v", stackInfo.CurrentBranch, stackInfo.FullStack)
 	}
 	r.logger.Debug("Current branch index in full stack", "index", currentIndex)
 
-	// 4. Check if we can go down (towards top/tip)
-	if currentIndex == len(orderedStack)-1 {
+	// Check if we can go down (towards top/tip)
+	if currentIndex == len(stackInfo.FullStack)-1 {
 		// Current branch is the top-most branch
-		msg := fmt.Sprintf("Already on the top branch: '%s'.", currentBranch)
+		msg := fmt.Sprintf("Already on the top branch: '%s'.", stackInfo.CurrentBranch)
 		_, _ = fmt.Fprintln(r.stdout, ui.Colors.InfoStyle.Render(msg))
 		return nil
 	}
 
-	// 5. Identify and checkout the child branch (next in the ordered stack)
+	// Identify and checkout the child branch (next in the ordered stack)
 	childIndex := currentIndex + 1
-	if childIndex < 0 || childIndex >= len(orderedStack) {
+	if childIndex < 0 || childIndex >= len(stackInfo.FullStack) {
 		// Should be impossible given the top branch check above, but safeguard
-		return fmt.Errorf("internal error: calculated invalid child index %d for stack %v", childIndex, orderedStack)
+		return fmt.Errorf("internal error: calculated invalid child index %d for stack %v", childIndex, stackInfo.FullStack)
 	}
-	childBranch := orderedStack[childIndex]
+	childBranch := stackInfo.FullStack[childIndex]
 	r.logger.Debug("Identified child branch", "childBranch", childBranch)
 
 	// Checkout child
@@ -72,7 +65,7 @@ func (r *upCmdRunner) run() error {
 	if err := git.CheckoutBranch(childBranch); err != nil {
 		// Check for uncommitted changes error
 		if strings.Contains(err.Error(), "Please commit your changes or stash them") {
-			return fmt.Errorf("cannot checkout child branch '%s': uncommitted changes detected in '%s'. Please commit or stash them first", childBranch, currentBranch)
+			return fmt.Errorf("cannot checkout child branch '%s': uncommitted changes detected in '%s'. Please commit or stash them first", childBranch, stackInfo.CurrentBranch)
 		}
 		return fmt.Errorf("failed to checkout child branch '%s': %w", childBranch, err)
 	}

@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"time"
 
-	"github.com/benekuehn/socle/cli/so/internal/cmdutils"
 	"github.com/benekuehn/socle/cli/so/internal/gh"
 	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/ui"
@@ -16,17 +16,25 @@ import (
 	"github.com/charmbracelet/lipgloss/list"
 )
 
-// branchLogInfo holds all data needed to render a single branch entry in the log.
+// Define rebase status constants
+type RebaseStatus string
+
+const (
+	RebaseStatusNeedsRestack RebaseStatus = "Needs Restack"
+	RebaseStatusUpToDate     RebaseStatus = "Up-to-date"
+	RebaseStatusError        RebaseStatus = "Error"
+)
+
 type branchLogInfo struct {
 	branchName      string
 	parentName      string
-	branchNameStyle func(string) string // Function to apply style (e.g., bold)
+	branchNameStyle func(string) string
 	prText          string
-	needsRebase     bool
+	rebaseStatus    statusResult
 }
 
 type statusResult struct {
-	text   string
+	status RebaseStatus
 	render func(string) string
 }
 
@@ -36,7 +44,6 @@ type logCmdRunner struct {
 	stderr io.Writer
 }
 
-// Custom styles for our list
 var (
 	rebaseDotStyle        = ui.Colors.DotFilledStyle
 	rebaseDotWarningStyle = ui.Colors.DotWarningStyle
@@ -46,32 +53,25 @@ var (
 	mutedStyle            = ui.Colors.MutedStyle
 )
 
-// Global map to store branch information
 var branchInfoMap = make(map[string]branchLogInfo)
 
-// Custom enumerator for our list
 func branchEnumerator(items list.Items, i int) string {
 	item := items.At(i)
 	// Strip ANSI escape codes from the branch name
 	branchName := strings.SplitN(item.Value(), " ", 2)[0]
-	branchName = strings.TrimSuffix(branchName, "\x1b[0m") // Remove ANSI reset
-	branchName = strings.TrimPrefix(branchName, "\x1b[1m") // Remove ANSI bold
+	branchName = strings.TrimSuffix(branchName, "\x1b[0m")
+	branchName = strings.TrimPrefix(branchName, "\x1b[1m")
 
-	// Check if this is the base branch
-	if strings.Contains(item.Value(), "(base)") {
-		return "   " // Three spaces for base branch
-	}
-
-	// Get branch info from our map
+	// Base or without info need space for alignment
 	branchInfo, exists := branchInfoMap[branchName]
-	if !exists {
+	if !exists || strings.Contains(item.Value(), "(base)") {
 		return "   " // Three spaces for branches without info
 	}
 
 	// First dot: Rebase status
 	var firstDot string
-	switch {
-	case branchInfo.needsRebase:
+	switch branchInfo.rebaseStatus.status {
+	case RebaseStatusNeedsRestack:
 		firstDot = rebaseDotWarningStyle.Render("●")
 	default:
 		firstDot = rebaseDotStyle.Render("●")
@@ -92,22 +92,31 @@ func branchEnumerator(items list.Items, i int) string {
 }
 
 func (r *logCmdRunner) run(ctx context.Context) error {
-	currentBranch, stackToCurrent, baseBranch, err := git.GetCurrentStackInfo()
-	handled, processedErr := cmdutils.HandleStartupError(err, currentBranch, r.stdout, r.stderr)
-	if processedErr != nil {
-		return processedErr
+	// 1. Get current branch first (best effort, for error handling)
+	currentBranch, _ := git.GetCurrentBranch()
+
+	// 2. Get stack info
+	stackInfo, err := git.GetStackInfo()
+
+	// 3. Handle specific error cases for log command
+	if err != nil {
+		if strings.Contains(err.Error(), "not tracked by socle") {
+			// For the log command, we should print the message ourselves to match test expectations
+			_, _ = fmt.Fprintf(r.stdout, "Branch '%s' is not currently tracked by socle.\n", currentBranch)
+			_, _ = fmt.Fprintln(r.stdout, "Use 'so track' to associate it with a parent branch and start a stack.")
+			return nil // Return nil to prevent additional error handling
+		}
+		return err // For other errors, just return them
 	}
-	if handled {
+
+	// 4. If we get here and have a nil stack or only base branch, print the base branch message
+	if stackInfo == nil || len(stackInfo.FullStack) <= 1 {
+		_, _ = fmt.Fprintf(r.stdout, "Currently on the base branch '%s'.\n", currentBranch)
 		return nil
 	}
 
-	fullOrderedStack, _, err := git.GetFullStack(stackToCurrent)
-	if err != nil {
-		_, _ = fmt.Fprintf(r.stderr, ui.Colors.FailureStyle.Render("Error: Could not determine the full stack: %v\n"), err)
-		return err
-	}
-
-	numBranchesInStack := len(fullOrderedStack) - 1
+	// Continue with the regular log command logic
+	numBranchesInStack := len(stackInfo.FullStack) - 1
 	if numBranchesInStack < 0 {
 		numBranchesInStack = 0
 	}
@@ -116,9 +125,9 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 	parentOIDs := make(map[string]string)
 	if numBranchesInStack > 0 {
 		parentNamesToFetch := make(map[string]struct{})
-		for i := len(fullOrderedStack) - 1; i >= 1; i-- {
+		for i := len(stackInfo.FullStack) - 1; i >= 1; i-- {
 			if i > 0 {
-				parentNamesToFetch[fullOrderedStack[i-1]] = struct{}{}
+				parentNamesToFetch[stackInfo.FullStack[i-1]] = struct{}{}
 			}
 		}
 		uniqueParentNames := make([]string, 0, len(parentNamesToFetch))
@@ -165,74 +174,63 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 	// Process branches in parallel
 	branchInfos := make([]branchLogInfo, 0, numBranchesInStack)
 	var wg sync.WaitGroup
-	results := make(map[string]string)
+	results := make(map[string]branchLogInfo)
 	var mu sync.Mutex
 
+	// Start timing all checks
+	startTime := time.Now()
+
 	// Process each branch in parallel
-	for i := len(fullOrderedStack) - 1; i >= 1; i-- {
-		branchName := fullOrderedStack[i]
+	for i := len(stackInfo.FullStack) - 1; i >= 1; i-- {
+		branchName := stackInfo.FullStack[i]
+		parentName := stackInfo.FullStack[i-1]
+		parentOID := parentOIDs[parentName]
+
 		wg.Add(1)
-		go func(branch string) {
+		go func(branch, parent string, parentOID string) {
 			defer wg.Done()
+
+			// Get PR status
 			prNumber, err := git.GetStoredPRNumber(branch)
-			var status string
+			var prStatus string
 			if err != nil || prNumber == 0 {
-				status = "No PR"
+				prStatus = gh.PRStatusNotFound
 			} else if ghClient != nil {
-				prStatus, _, err := ghClient.GetPullRequestStatus(prNumber)
+				prStatus, _, err = ghClient.GetPullRequestStatus(prNumber)
 				if err != nil {
-					status = fmt.Sprintf("⚠️ PR check failed: %v", err)
-				} else {
-					switch prStatus {
-					case gh.PRStatusOpen:
-						status = "Open PR"
-					case gh.PRStatusDraft:
-						status = "Draft PR"
-					case gh.PRStatusMerged:
-						status = "Merged PR"
-					case gh.PRStatusClosed:
-						status = "Closed PR"
-					case gh.PRStatusNotFound:
-						status = "No PR"
-					default:
-						status = fmt.Sprintf("Unknown PR state: %s", prStatus)
-					}
+					prStatus = gh.PRStatusAPIError
 				}
 			} else {
-				status = "⚠️ PR client N/A"
+				prStatus = gh.PRStatusAPIError
+			}
+
+			// Get rebase status
+			rebaseStatusResult := getRebaseStatus(parent, branch, parentOID, r.stderr)
+
+			// Create branch info
+			info := branchLogInfo{
+				branchName:      branch,
+				parentName:      parent,
+				branchNameStyle: func(s string) string { return lipgloss.NewStyle().Bold(true).Render(s) },
+				prText:          prStatus,
+				rebaseStatus:    rebaseStatusResult,
 			}
 
 			mu.Lock()
-			results[branch] = status
+			results[branch] = info
 			mu.Unlock()
-		}(branchName)
+		}(branchName, parentName, parentOID)
 	}
 
-	// Wait for all PR checks to complete
+	// Wait for all checks to complete
 	wg.Wait()
+	totalDuration := time.Since(startTime)
+	_, _ = fmt.Fprintf(r.stdout, "Total processing time (parallel): %v\n", totalDuration)
 
-	// Process branches in order
-	for i := len(fullOrderedStack) - 1; i >= 1; i-- {
-		branchName := fullOrderedStack[i]
-		parentName := fullOrderedStack[i-1]
-		parentOID := parentOIDs[parentName]
-
-		// Get rebase status
-		rebaseStatusResult := getRebaseStatus(parentName, branchName, parentOID, r.stderr)
-		needsRebase := rebaseStatusResult.text == "(Needs Restack)"
-
-		// Get PR status from results
-		prStatus := results[branchName]
-
-		// Create branch info
-		info := branchLogInfo{
-			branchName:      branchName,
-			parentName:      parentName,
-			needsRebase:     needsRebase,
-			branchNameStyle: func(s string) string { return lipgloss.NewStyle().Bold(true).Render(s) },
-			prText:          prStatus,
-		}
-		branchInfos = append(branchInfos, info)
+	// Process branches in order to maintain the original order
+	for i := len(stackInfo.FullStack) - 1; i >= 1; i-- {
+		branchName := stackInfo.FullStack[i]
+		branchInfos = append(branchInfos, results[branchName])
 	}
 
 	// Create a new list
@@ -241,50 +239,49 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 	// Clear the global map
 	branchInfoMap = make(map[string]branchLogInfo)
 
-	// Add branches to the list
 	for _, info := range branchInfos {
-		// Format status text
 		var statusText string
-		if info.needsRebase {
+		switch info.rebaseStatus.status {
+		case RebaseStatusNeedsRestack:
 			statusText = "(needs restack"
-		} else {
+		case RebaseStatusError:
+			statusText = "(rebase check failed"
+		default:
 			statusText = "(up-to-date"
 		}
 
-		// Add PR status using switch
-		switch {
-		case strings.Contains(info.prText, "Draft"):
+		switch info.prText {
+		case gh.PRStatusDraft:
 			statusText += ", pr drafted"
-		case strings.Contains(info.prText, "Merged"):
+		case gh.PRStatusMerged:
 			statusText += ", pr merged"
-		case strings.Contains(info.prText, "Open"):
+		case gh.PRStatusOpen:
 			statusText += ", pr open"
-		case strings.Contains(info.prText, "Closed"):
+		case gh.PRStatusClosed:
 			statusText += ", pr closed"
+		case gh.PRStatusAPIError:
+			statusText += ", pr check failed"
+		case gh.PRStatusNotFound:
+			statusText += ", no PR submitted"
 		default:
 			statusText += ", no PR submitted"
 		}
 		statusText += ")"
 
-		// Store branch info in our map
 		branchInfoMap[info.branchName] = info
 
-		// Add the branch to the list with its status, only making the branch name bold
 		boldBranchName := lipgloss.NewStyle().Bold(true).Render(info.branchName)
 		mutedStatus := mutedStyle.Render(statusText)
 		l.Item(boldBranchName + " " + mutedStatus)
 	}
 
-	// Add the base branch at the end with muted style
-	mutedBase := mutedStyle.Render(baseBranch + " (base)")
+	mutedBase := mutedStyle.Render(stackInfo.BaseBranch + " (base)")
 	l.Item(mutedBase)
 
-	// Configure the list with custom styles
 	l = l.Enumerator(branchEnumerator).
 		EnumeratorStyle(lipgloss.NewStyle().MarginRight(1).Bold(true)).
 		ItemStyle(lipgloss.NewStyle().MarginRight(1))
 
-	// Print the list with padding
 	paddedList := lipgloss.NewStyle().
 		PaddingLeft(2).
 		PaddingTop(1).
@@ -295,7 +292,6 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 	return nil
 }
 
-// getRebaseStatus now takes a pre-fetched parentOID.
 // It calculates needsRestack by comparing parentOID with the merge-base of parentName and branchName.
 func getRebaseStatus(parentName, branchName string, parentOID string, errW io.Writer) statusResult {
 	// parentOID is pre-fetched. We still need the merge-base between parentName and branchName.
@@ -303,19 +299,19 @@ func getRebaseStatus(parentName, branchName string, parentOID string, errW io.Wr
 	if errMergeBase != nil {
 		// Log the warning about failing to get merge-base.
 		_, _ = fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("  Warning: Could not get merge base between '%s' and '%s' to check rebase status: %v\n"), parentName, branchName, errMergeBase)
-		return statusResult{"(Rebase: Error)", func(s string) string { return ui.Colors.FailureStyle.Render(s) }}
+		return statusResult{RebaseStatusError, func(s string) string { return ui.Colors.FailureStyle.Render(s) }}
 	}
 
 	if parentOID == "" { // Can happen if parent OID fetch failed
 		_, _ = fmt.Fprintf(errW, ui.Colors.WarningStyle.Render("  Warning: Provided parent OID for '%s' is empty. Cannot determine rebase status for '%s'.\n"), parentName, branchName)
-		return statusResult{"(Rebase: Error)", func(s string) string { return ui.Colors.FailureStyle.Render(s) }}
+		return statusResult{RebaseStatusError, func(s string) string { return ui.Colors.FailureStyle.Render(s) }}
 	}
 
 	needsRestack := (mergeBase != parentOID)
 
 	if needsRestack {
-		return statusResult{"(Needs Restack)", func(s string) string { return ui.Colors.WarningStyle.Render(s) }}
+		return statusResult{RebaseStatusNeedsRestack, func(s string) string { return ui.Colors.WarningStyle.Render(s) }}
 	} else {
-		return statusResult{"(Up-to-date)", func(s string) string { return ui.Colors.SuccessStyle.Render(s) }}
+		return statusResult{RebaseStatusUpToDate, func(s string) string { return ui.Colors.SuccessStyle.Render(s) }}
 	}
 }

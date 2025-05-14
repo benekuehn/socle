@@ -9,11 +9,11 @@ import (
 	"github.com/benekuehn/socle/cli/so/internal/git"
 )
 
-// HandleStartupError manages errors from GetCurrentStackInfo for better command startup UX.
-// It checks for specific conditions like being on the base branch or the branch being untracked,
-// printing helpful messages to the provided writers.
-// Returns true if the condition was handled (message printed), false otherwise.
-// Returns the original error if it was unexpected and not handled.
+// HandleStartupError manages errors from GetStackInfo for better command startup UX.
+// It checks for specific conditions like being on the base branch or the branch being untracked.
+// Returns:
+// - handled: true if a standard message was printed, false otherwise
+// - returnErr: the original error (potentially modified) that commands should handle
 func HandleStartupError(err error, currentBranchAttempt string, outW io.Writer, errW io.Writer) (handled bool, returnErr error) {
 	cb := currentBranchAttempt
 	if cb == "" {
@@ -21,28 +21,16 @@ func HandleStartupError(err error, currentBranchAttempt string, outW io.Writer, 
 	}
 
 	// Check for untracked error conditions explicitly
-	isUntrackedError := false
-	if err != nil {
-		// Check specific error type or characteristic strings
-		if errors.Is(err, git.ErrConfigNotFound) || strings.Contains(err.Error(), "not tracked by socle") {
-			isUntrackedError = true
-		}
+	if err != nil && (errors.Is(err, git.ErrConfigNotFound) || strings.Contains(err.Error(), "not tracked by socle")) {
+		// Just return the error - the command will handle the specific message format
+		return false, fmt.Errorf("not tracked by socle")
 	}
 
-	// TODO: Make base branches configurable instead of hardcoded map
-	knownBases := map[string]bool{"main": true, "master": true, "develop": true}
-	// Only consider it truly "on base" if GetCurrentStackInfo succeeded without error
-	isOnBase := knownBases[cb] && err == nil
-
-	if isOnBase {
-		_, _ = fmt.Fprintf(outW, "Currently on the base branch '%s'.\\n", cb)
-		return true, nil // Handled successfully
-	} else if isUntrackedError {
-		_, _ = fmt.Fprintf(outW, "Branch '%s' is not currently tracked by socle.\\n", cb)
-		_, _ = fmt.Fprintln(outW, "Use 'so track' to associate it with a parent branch and start a stack.")
-		return true, nil // Handled successfully
+	// If there was no error, nothing to handle
+	if err == nil {
+		return false, nil
 	}
 
-	// Situation wasn't handled here (either no error and not on base, or an unexpected error)
-	return false, err // Return original error (might be nil)
+	// For any other error, just return it
+	return false, err
 }

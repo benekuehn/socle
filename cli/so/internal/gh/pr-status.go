@@ -24,6 +24,9 @@ const (
 // GetPullRequestStatus fetches a PR and returns its semantic status and URL.
 // It assumes the gh.Client is valid and prNumber > 0.
 func (c *Client) GetPullRequestStatus(prNumber int) (status string, prURL string, err error) {
+	// Increment API call counter
+	Counter.Increment("GetPullRequestStatus")
+
 	// GetPullRequest is already defined in client.go
 	pr, err := c.GetPullRequest(prNumber)
 	if err != nil {

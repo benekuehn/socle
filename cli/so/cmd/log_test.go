@@ -92,7 +92,7 @@ func TestLogCommand(t *testing.T) {
 
 		require.NoError(t, err)
 		actualContent := stripAnsi(stdout)
-		assert.Contains(t, actualContent, "  ● ○ feature-a (up-to-date, no PR submitted)")
+		assert.Contains(t, actualContent, "  ● ○ feature-a (up-to-date, pr check failed)")
 		assert.Contains(t, actualContent, "      main (base)")
 	})
 

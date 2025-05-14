@@ -43,17 +43,20 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 		return fmt.Errorf("uncommitted changes detected. Please commit or stash them before restacking")
 	}
 
-	// --- Get Stack Info ---
-	originalBranch, err := git.GetCurrentBranch()
-	if err != nil {
-		return fmt.Errorf("cannot get current branch: %w", err)
-	}
-	_, stack, baseBranch, err := git.GetCurrentStackInfo()
+	// Get complete stack info in one call
+	stackInfo, err := git.GetStackInfo()
 	if err != nil {
 		return err
 	}
+
+	// Extract the information we need
+	stack := stackInfo.CurrentStack
+	baseBranch := stackInfo.BaseBranch
+
+	r.logger.Debug("Identified stack for restacking", "stack", stack, "base", baseBranch)
+
 	if len(stack) <= 1 {
-		_, _ = fmt.Fprintln(r.stdout, "Current branch is the base or directly on base. Nothing to restack.")
+		_, _ = fmt.Fprintln(r.stdout, ui.Colors.InfoStyle.Render("No branches to restack: current branch is a base branch."))
 		return nil
 	}
 
@@ -62,11 +65,11 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 		// Only run if no rebase is currently in progress (i.e., we didn't exit due to conflict)
 		if !git.IsRebaseInProgress() {
 			currentBranchAfter, _ := git.GetCurrentBranch()
-			if currentBranchAfter != originalBranch {
-				r.logger.Debug("Checking out original branch", "name", originalBranch)
-				errCheckout := git.CheckoutBranch(originalBranch)
+			if currentBranchAfter != baseBranch {
+				r.logger.Debug("Checking out original branch", "name", baseBranch)
+				errCheckout := git.CheckoutBranch(baseBranch)
 				if errCheckout != nil {
-					_, _ = fmt.Fprintf(r.stderr, ui.Colors.WarningStyle.Render("Warning: Failed to checkout original branch '%s': %v\\n"), originalBranch, errCheckout)
+					_, _ = fmt.Fprintf(r.stderr, ui.Colors.WarningStyle.Render("Warning: Failed to checkout original branch '%s': %v\\n"), baseBranch, errCheckout)
 				}
 			}
 		}

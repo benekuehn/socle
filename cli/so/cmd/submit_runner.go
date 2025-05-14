@@ -114,7 +114,9 @@ func (r *submitCmdRunner) prepareSubmit(ctx context.Context) ([]string, map[stri
 	r.logger.Debug("GitHub client created/obtained")
 
 	// Handle potential startup issues (like not being in a git repo or stack)
-	currentBranch, currentStack, _, err := git.GetCurrentStackInfo()
+	currentBranch, _ := git.GetCurrentBranch() // Best effort for error handling
+
+	stackInfo, err := git.GetStackInfo()
 	handled, processedErr := cmdutils.HandleStartupError(err, currentBranch, r.stdout, r.stderr)
 	if processedErr != nil {
 		return nil, nil, processedErr
@@ -122,13 +124,13 @@ func (r *submitCmdRunner) prepareSubmit(ctx context.Context) ([]string, map[stri
 	if handled {
 		return nil, nil, errStartupHandled
 	}
-	r.logger.Debug("Startup checks passed", "currentBranch", currentBranch)
 
-	r.logger.Debug("Determining full stack...")
-	fullStack, allParents, err := git.GetFullStack(currentStack)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to determine full stack: %w", err)
-	}
+	// If we get here, we have a valid stackInfo
+	r.logger.Debug("Startup checks passed", "currentBranch", stackInfo.CurrentBranch)
+
+	r.logger.Debug("Using full stack from GetStackInfo...")
+	fullStack := stackInfo.FullStack
+	allParents := stackInfo.ParentMap
 	r.logger.Debug("Full ordered stack identified for processing", "fullStack", fullStack)
 
 	if len(fullStack) <= 1 {
