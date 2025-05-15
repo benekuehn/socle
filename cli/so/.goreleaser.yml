@@ -16,10 +16,9 @@ env:
 # Git configuration for monorepo
 git:
   # Use prefixed tags for the CLI
-  tag_filter: 'cli/v*'
+  prefix: 'cli/v'
   # Consider only commits in the CLI directory
-  paths:
-    - cli/so
+  dir: cli/so
 
 # Build configuration
 builds:
