@@ -7,6 +7,7 @@ This tool makes stacked development workflows smoother by adding metadata locall
 
 Using Homebrew (Recommended)
 The easiest way to install ⁠so is through Homebrew:
+
 ```bash
 # Add the tap repository
 brew tap benekuehn/socle
@@ -14,19 +15,24 @@ brew tap benekuehn/socle
 # Install the package
 brew install socle
 ```
+
 Verifying Installation
 After installation, verify that `so` is working correctly:
+
 ```bash
 so --version
 ```
 
-## Basic Usage
+## Basic Usag
+
 Most so commands need to be run from within a Git repository.
 
 <!-- CLI_REFERENCE_START -->
-*This section is auto-generated. Do not edit manually.*
+
+_This section is auto-generated. Do not edit manually._
 
 ### so bottom
+
 Navigates to the first branch stacked directly on top of the base branch.
 
 The stack is determined by the tracking information set via 'so track'.
@@ -49,13 +55,15 @@ so bottom [flags]
 ---
 
 ### so create
+
 Creates a new branch stacked on top of the current branch.
 
 If a [branch-name] is not provided, you will be prompted for one.
 
 If there are uncommitted changes in the working directory:
-  - They will be staged and committed onto the *new* branch.
-  - You must provide a commit message via the -m flag, or you will be prompted.
+
+-   They will be staged and committed onto the _new_ branch.
+-   You must provide a commit message via the -m flag, or you will be prompted.
 
 ```
 so create [branch-name] [flags]
@@ -75,6 +83,7 @@ so create [branch-name] [flags]
 ---
 
 ### so down
+
 Navigates one level down the stack towards the base branch.
 
 The stack is determined by the tracking information set via 'so track'.
@@ -97,6 +106,7 @@ so down [flags]
 ---
 
 ### so log
+
 Shows the sequence of tracked branches leading from the stack's base
 branch to the current branch, based on metadata set by 'socle track'.
 Includes status indicating if a branch needs rebasing onto its parent.
@@ -118,19 +128,21 @@ so log [flags]
 ---
 
 ### so restack
+
 Updates the current stack by rebasing each branch sequentially onto its updated parent.
 Handles remote 'origin' automatically.
 
 Process:
+
 1. Checks for clean state & existing Git rebase.
 2. Fetches the base branch from 'origin' (unless --no-fetch).
 3. Rebases each branch in the stack onto the latest commit of its parent.
-   - Skips branches that are already up-to-date.
+    - Skips branches that are already up-to-date.
 4. If conflicts occur:
-   - Stops and instructs you to use standard Git commands (status, add, rebase --continue / --abort).
-   - Run 'so restack' again after resolving or aborting the Git rebase.
+    - Stops and instructs you to use standard Git commands (status, add, rebase --continue / --abort).
+    - Run 'so restack' again after resolving or aborting the Git rebase.
 5. If successful:
-   - Prompts to force-push updated branches to 'origin' (use --force-push or --no-push to skip prompt).
+    - Prompts to force-push updated branches to 'origin' (use --force-push or --no-push to skip prompt).
 
 ```
 so restack [flags]
@@ -152,13 +164,14 @@ so restack [flags]
 ---
 
 ### so submit
+
 Pushes branches in the current stack to the remote ('origin' by default)
 and creates or updates corresponding GitHub Pull Requests.
 
-- Requires GITHUB_TOKEN environment variable with 'repo' scope.
-- Reads PR templates from .github/ or root directory.
-- Creates Draft PRs by default (use --no-draft to override).
-- Stores PR numbers locally in '.git/config' for future updates.
+-   Requires GITHUB_TOKEN environment variable with 'repo' scope.
+-   Reads PR templates from .github/ or root directory.
+-   Creates Draft PRs by default (use --no-draft to override).
+-   Stores PR numbers locally in '.git/config' for future updates.
 
 ```
 so submit [flags]
@@ -180,6 +193,7 @@ so submit [flags]
 ---
 
 ### so top
+
 Navigates to the highest branch in the current stack.
 
 The stack is determined by the tracking information set via 'so track'.
@@ -202,6 +216,7 @@ so top [flags]
 ---
 
 ### so track
+
 Associates the current branch with a parent branch to define its position
 within a stack. This allows 'socle show' to display the specific stack you are on.
 
@@ -222,6 +237,7 @@ so track [flags]
 ---
 
 ### so up
+
 Navigates one level up the stack towards the tip.
 
 The stack is determined by the tracking information set via 'so track'.
@@ -240,23 +256,28 @@ so up [flags]
 ```
       --debug   Enable debug logging output
 ```
+
 <!-- CLI_REFERENCE_END -->
 
-
 ### Configuration
+
 `so` stores stack relationship metadata directly in your local repository's configuration file (⁠.git/config) using ⁠git config.
-- branch.<branch-name>.socle-parent: The name of the parent branch in the stack.
-- branch.<branch-name>.socle-base: The name of the ultimate base/trunk branch for the stack.
+
+-   branch.<branch-name>.socle-parent: The name of the parent branch in the stack.
+-   branch.<branch-name>.socle-base: The name of the ultimate base/trunk branch for the stack.
 
 This information is local only and is not pushed to the remote repository.
 (Future configuration options, like setting default base branches, might be added later.)
 
 ## Contributing
+
 ### Setting up your Go Environment
+
 1. Verify Go Installation:
-Check if Go is installed by running `go version`. If it's not installed, follow the instructions at https://golang.org/doc/install to install Go.
+   Check if Go is installed by running `go version`. If it's not installed, follow the instructions at https://golang.org/doc/install to install Go.
 2. Configure Go Environment PATH:
-The `go` install command places compiled binaries in the ⁠bin subdirectory of your ⁠GOPATH, or the directory specified by the ⁠GOBIN environment variable. Add this directory to your shell's ⁠PATH:
+   The `go` install command places compiled binaries in the ⁠bin subdirectory of your ⁠GOPATH, or the directory specified by the ⁠GOBIN environment variable. Add this directory to your shell's ⁠PATH:
+
 ```bash
 # Find your Go bin directory
 go env GOPATH GOBIN
@@ -264,7 +285,9 @@ go env GOPATH GOBIN
 # Add to your PATH (in ~/.zshrc, ~/.bashrc, etc.)
 export PATH="$HOME/go/bin:$PATH"
 ```
+
 ### Development Workflow with Make
+
 We use a Makefile to simplify the development process. Here's how to use it:
 
 ```bash
@@ -275,13 +298,11 @@ cd socle/cli/so
 # Build and install a development version globally
 make dev-install
 ```
-The `make dev-install` command will:
-	1. Run all linters to check code quality
-	2. Execute all tests to verify functionality
-	3. Build a binary named ⁠so-dev
-	4. Install it to your Go binary path so it's globally accessible
+
+The `make dev-install` command will: 1. Run all linters to check code quality 2. Execute all tests to verify functionality 3. Build a binary named ⁠so-dev 4. Install it to your Go binary path so it's globally accessible
 
 You can then run your development build from anywhere:
+
 ```bash
 so-dev [command]
 ```
