@@ -1,9 +1,11 @@
-name: Release
+name: Release CLI
 
 on:
   push:
     branches:
       - main
+    paths:
+      - 'cli/so/**'
 
 permissions:
   contents: write # Needed for creating releases
@@ -12,6 +14,9 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cli/so  # Set default working directory for all run steps
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,6 +32,7 @@ jobs:
         uses: golangci/golangci-lint-action@v3
         with:
           version: latest
+          working-directory: cli/so
 
       - name: Run all checks
         run: make all
@@ -37,5 +43,6 @@ jobs:
           distribution: goreleaser
           version: latest
           args: release --clean
+          working-directory: cli/so
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
