@@ -71,7 +71,7 @@ jobs:
             - name: Run GoReleaser
               uses: goreleaser/goreleaser-action@v5
               with:
-                  version: 2.14.0
+                  version: 2.x
                   args: release --clean
                   workdir: cli/so # <--- Set the working directory for GoReleaser
               env:
