@@ -23,7 +23,7 @@ After installation, verify that `so` is working correctly:
 so --version
 ```
 
-## Basic Usag
+## Basic Usage
 
 Most so commands need to be run from within a Git repository.
 
