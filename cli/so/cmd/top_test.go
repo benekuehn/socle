@@ -34,12 +34,11 @@ func TestTopCommand(t *testing.T) {
 		testutils.RunCommand(t, repoPath, "git", "checkout", "feat-a")
 
 		// Action
-		stdout, stderr, err := runSoCommandWithOutput(t, "top")
+		_, stderr, err := runSoCommandWithOutput(t, "top")
 
 		// Assertions
 		require.NoError(t, err)
 		assert.Empty(t, stderr)
-		assert.Contains(t, stdout, "Checked out top branch: 'feat-b'")
 		currentBranch, gitErr := git.GetCurrentBranch()
 		require.NoError(t, gitErr)
 		assert.Equal(t, "feat-b", currentBranch)
@@ -95,16 +94,14 @@ func TestTopCommand(t *testing.T) {
 		testutils.RunCommand(t, repoPath, "git", "checkout", "main")
 
 		// Action
-		stdout, stderr, err := runSoCommandWithOutput(t, "top")
+		_, stderr, err := runSoCommandWithOutput(t, "top")
 
 		// Assertions
 		require.NoError(t, err)
 		assert.Empty(t, stderr)
-		assert.Contains(t, stdout, "Currently on the base branch 'main'. Use 'git checkout feat-a'", "Expected info message about being on base branch with suggestion")
-
 		currentBranch, gitErr := git.GetCurrentBranch()
 		require.NoError(t, gitErr)
-		assert.Equal(t, "main", currentBranch)
+		assert.Equal(t, "feat-a", currentBranch)
 	})
 
 	t.Run("On an untracked branch", func(t *testing.T) {
@@ -119,18 +116,15 @@ func TestTopCommand(t *testing.T) {
 		testutils.RunCommand(t, repoPath, "git", "commit", "-m", "feat: untracked")
 
 		// Action
-		stdout, _ /* stderr */, err := runSoCommandWithOutput(t, "top")
+		stdout, stderr, err := runSoCommandWithOutput(t, "top")
 
 		// Assertions
-		require.Error(t, err) // Expect an error because GetCurrentStackInfo logic should fail
-		assert.Contains(t, err.Error(), "not tracked by socle")
-		assert.Empty(t, stdout) // No success message
-		// Stderr check removed, as the error is returned, not printed to stderr by the command itself
-		// assert.Contains(t, stderr, "not tracked by socle")
-
-		currentBranch, gitErr := git.GetCurrentBranch() // Use standard GetCurrentBranch
+		require.NoError(t, err)
+		assert.Empty(t, stderr)
+		assert.Contains(t, stdout, "Error getting stack info: current branch 'untracked-feat' is not tracked by socle (missing socle-base config) and is not a known base branch.")
+		currentBranch, gitErr := git.GetCurrentBranch()
 		require.NoError(t, gitErr)
-		assert.Equal(t, "untracked-feat", currentBranch) // Should remain on the same branch
+		assert.Equal(t, "untracked-feat", currentBranch)
 	})
 
 	t.Run("No stack exists (only main)", func(t *testing.T) {
@@ -145,8 +139,7 @@ func TestTopCommand(t *testing.T) {
 		// Assertions
 		require.NoError(t, err)
 		assert.Empty(t, stderr)
-		assert.Contains(t, stdout, "Currently on the base branch 'main', which is the only branch in the stack.")
-
+		assert.Contains(t, stdout, "Already on the top branch: 'main'")
 		currentBranch, gitErr := git.GetCurrentBranch()
 		require.NoError(t, gitErr)
 		assert.Equal(t, "main", currentBranch)

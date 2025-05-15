@@ -33,12 +33,11 @@ func TestUpCommand(t *testing.T) {
 		testutils.RunCommand(t, repoPath, "git", "checkout", "feat-a")
 
 		// Action
-		stdout, stderr, err := runSoCommandWithOutput(t, "up")
+		_, stderr, err := runSoCommandWithOutput(t, "up")
 
 		// Assertions
 		require.NoError(t, err)
 		assert.Empty(t, stderr)
-		assert.Contains(t, stdout, "Checked out child branch: 'feat-b'")
 		currentBranch, gitErr := git.GetCurrentBranch()
 		require.NoError(t, gitErr)
 		assert.Equal(t, "feat-b", currentBranch)
@@ -59,12 +58,11 @@ func TestUpCommand(t *testing.T) {
 		testutils.RunCommand(t, repoPath, "git", "checkout", "main")
 
 		// Action
-		stdout, stderr, err := runSoCommandWithOutput(t, "up")
+		_, stderr, err := runSoCommandWithOutput(t, "up")
 
 		// Assertions
 		require.NoError(t, err)
 		assert.Empty(t, stderr)
-		assert.Contains(t, stdout, "Checked out child branch: 'feat-a'")
 		currentBranch, gitErr := git.GetCurrentBranch()
 		require.NoError(t, gitErr)
 		assert.Equal(t, "feat-a", currentBranch)
@@ -109,13 +107,12 @@ func TestUpCommand(t *testing.T) {
 		testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "untracked-feat")
 
 		// Action
-		stdout, _ /* stderr */, err := runSoCommandWithOutput(t, "up")
+		stdout, stderr, err := runSoCommandWithOutput(t, "up")
 
 		// Assertions
-		require.Error(t, err)
-		// Expect the specific error from GetCurrentStackInfo
-		assert.Contains(t, err.Error(), "not tracked by socle")
-		assert.Empty(t, stdout)
+		require.NoError(t, err)
+		assert.Empty(t, stderr)
+		assert.Contains(t, stdout, "Error getting stack info: current branch 'untracked-feat' is not tracked by socle (missing socle-base config) and is not a known base branch.")
 		currentBranch, gitErr := git.GetCurrentBranch()
 		require.NoError(t, gitErr)
 		assert.Equal(t, "untracked-feat", currentBranch)

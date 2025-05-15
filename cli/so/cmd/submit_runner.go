@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/benekuehn/socle/cli/so/internal/cmdutils"
 	"github.com/benekuehn/socle/cli/so/internal/gh"
 	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/ui"
@@ -113,16 +112,9 @@ func (r *submitCmdRunner) prepareSubmit(ctx context.Context) ([]string, map[stri
 	}
 	r.logger.Debug("GitHub client created/obtained")
 
-	// Handle potential startup issues (like not being in a git repo or stack)
-	currentBranch, _ := git.GetCurrentBranch() // Best effort for error handling
-
 	stackInfo, err := git.GetStackInfo()
-	handled, processedErr := cmdutils.HandleStartupError(err, currentBranch, r.stdout, r.stderr)
-	if processedErr != nil {
-		return nil, nil, processedErr
-	}
-	if handled {
-		return nil, nil, errStartupHandled
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get stack info: %w", err)
 	}
 
 	// If we get here, we have a valid stackInfo
