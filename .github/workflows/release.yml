@@ -10,6 +10,7 @@ on:
 permissions:
   contents: write # Needed for creating releases
   packages: write # Needed for pushing to registries
+  pull-requests: write # Needed for semantic-release
 
 jobs:
   release:
@@ -38,17 +39,35 @@ jobs:
       - name: Run all checks
         run: make all
 
+      - name: Setup semantic-release
+        run: |
+          echo '{
+            "branches": ["main"],
+            "tagFormat": "cli/v${version}",
+            "plugins": [
+              ["@semantic-release/commit-analyzer", {
+                "preset": "conventionalcommits",
+                "releaseRules": [
+                  {"type": "feat", "release": "minor"},
+                  {"type": "fix", "release": "patch"},
+                  {"type": "docs", "release": "patch"},
+                  {"type": "style", "release": "patch"},
+                  {"type": "refactor", "release": "patch"},
+                  {"type": "perf", "release": "patch"},
+                  {"type": "test", "release": "patch"}
+                ]
+              }]
+            ]
+          }' > .releaserc.json
+
       - name: Create Release Tag
         uses: go-semantic-release/action@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           changelog-file: true
-          changelog-generator-opt: "emojis=true"
           allow-initial-development-versions: true
           force-bump-patch-version: true
-          initial-development: true  # Force 0.x.x versioning
-          prefix: cli/v
-          working-directory: cli/so
+          changelog-generator-opt: "emojis=true"
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
