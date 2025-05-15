@@ -9,80 +9,75 @@ project_name: socle
 
 # Environment variables used during build
 env:
-  # Tells goreleaser to run CGO builds for libraries that need it
-  # We probably don't need this for a pure Go CLI, but doesn't hurt
-  - CGO_ENABLED=0
-
-# Monorepo configuration
-monorepo:
-  tag_prefix: cli/v
-  dir: cli/so
+    # Tells goreleaser to run CGO builds for libraries that need it
+    # We probably don't need this for a pure Go CLI, but doesn't hurt
+    - CGO_ENABLED=0
 
 # Build configuration
 builds:
-  - # Build for the 'so' CLI
-    id: socle-cli
-    # Path to the main package relative to this directory (cli/so)
-    main: ./
-    # Output binary name
-    binary: so
-    # Environment variables for this specific build
-    env:
-      - CGO_ENABLED=0 # Ensure CGO is disabled for cross-compilation
-    # Go OS/Arch targets
-    # Reference: https://goreleaser.com/customization/build/#building-for-different-architectures
-    goos:
-      - darwin
-    goarch:
-      - amd64
-      - arm64
-    ldflags:
-      - -s -w
-      - -X github.com/benekuehn/socle/cli/so/cmd.version={{ .Version }}
+    - # Build for the 'so' CLI
+      id: socle-cli
+      # Path to the main package relative to this directory (cli/so)
+      main: ./
+      # Output binary name
+      binary: so
+      # Environment variables for this specific build
+      env:
+          - CGO_ENABLED=0 # Ensure CGO is disabled for cross-compilation
+      # Go OS/Arch targets
+      # Reference: https://goreleaser.com/customization/build/#building-for-different-architectures
+      goos:
+          - darwin
+      goarch:
+          - amd64
+          - arm64
+      ldflags:
+          - -s -w
+          - -X github.com/benekuehn/socle/cli/so/cmd.version={{ .Version }}
 
 # Archive configuration (creates .tar.gz and .zip)
 archives:
-  - id: socle-cli-archive
-    # Archive only the build ID matching the CLI
-    builds:
-      - socle-cli
-    # Archive name template
-    # Reference: https://goreleaser.com/customization/archive/
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    files:
-      - LICENSE
-      - README.md
+    - id: socle-cli-archive
+      # Archive only the build ID matching the CLI
+      builds:
+          - socle-cli
+      # Archive name template
+      # Reference: https://goreleaser.com/customization/archive/
+      name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+      files:
+          - LICENSE
+          - README.md
 
 # Generate checksums file
 checksum:
-  name_template: 'checksums.txt'
+    name_template: "checksums.txt"
 
 # Create a GitHub Release
 # Reference: https://goreleaser.com/customization/release/
 release:
-  # Creates a draft release. Change to false to auto-publish.
-  draft: true
+    # Creates a draft release. Change to false to auto-publish.
+    draft: true
 
 # Homebrew Tap configuration
 # Reference: https://goreleaser.com/customization/homebrew/
 brews:
-  - # Tap repository details
-    repository:
-      owner: benekuehn
-      name: homebrew-tap # Your tap repository name
+    - # Tap repository details
+      repository:
+          owner: benekuehn
+          name: homebrew-tap # Your tap repository name
 
-    # Commit message template for the tap repository
-    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
+      # Commit message template for the tap repository
+      commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
 
-    # Link to your project's homepage
-    homepage: "https://github.com/benekuehn/socle"
-    # Description for the formula
-    description: "CLI tool for managing stacked Git branches"
+      # Link to your project's homepage
+      homepage: "https://github.com/benekuehn/socle"
+      # Description for the formula
+      description: "CLI tool for managing stacked Git branches"
 
-    # License for the formula
-    license: "MIT"
+      # License for the formula
+      license: "MIT"
 
 # Configuration for snapshot releases (testing without tagging)
 # Reference: https://goreleaser.com/customization/snapshots/
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+    name_template: "{{ incpatch .Version }}-next"

@@ -1,82 +1,78 @@
 name: Create Alpha Release
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'cli/so/**' # Only run if changes in the cli/so/ subdirectory or its contents
+    push:
+        branches:
+            - main
+        paths:
+            - "cli/so/**" # Only run if changes in the cli/so/ subdirectory or its contents
 
 permissions:
-  contents: write # Required to push tags and create releases
+    contents: write # Required to push tags and create releases
 
 jobs:
-  goreleaser:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Necessary for GoReleaser to determine version and for tag listing
+    goreleaser:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0 # Necessary for GoReleaser to determine version and for tag listing
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22' # Specify your project's Go version
+            - name: Set up Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: "1.22" # Specify your project's Go version
 
-      - name: Configure Git user
-        run: |
-          git config user.name "${GITHUB_ACTOR}"
-          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+            - name: Configure Git user
+              run: |
+                  git config user.name "${GITHUB_ACTOR}"
+                  git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
 
-      - name: Determine Next Alpha Tag
-        id: tagger
-        run: |
-          set -e # Exit immediately if a command exits with a non-zero status
+            - name: Determine Next Alpha Tag
+              id: tagger
+              run: |
+                  set -e # Exit immediately if a command exits with a non-zero status
 
-          git fetch --tags --force # Ensure all tags are fetched
+                  git fetch --tags --force # Ensure all tags are fetched
 
-          BASE_VERSION="v0.1.0" # Base for your alpha series (e.g., v0.1.0-alpha.N)
+                  BASE_VERSION="v0.1.0" # Base for your alpha series (e.g., v0.1.0-alpha.N)
 
-          # Get the latest existing tag like v0.1.0-alpha.X, sorted by version number
-          LATEST_ALPHA_TAG=$(git tag --list "${BASE_VERSION}-alpha.*" --sort="-version:refname" | head -n 1)
+                  # Get the latest existing tag like v0.1.0-alpha.X, sorted by version number
+                  LATEST_ALPHA_TAG=$(git tag --list "${BASE_VERSION}-alpha.*" --sort="-version:refname" | head -n 1)
 
-          NEXT_ALPHA_NUM=1 # Default to .1 if no matching alpha tags are found
+                  NEXT_ALPHA_NUM=1 # Default to .1 if no matching alpha tags are found
 
-          if [[ -n "$LATEST_ALPHA_TAG" ]]; then
-            CURRENT_ALPHA_SUFFIX="${LATEST_ALPHA_TAG##*-alpha.}"
-            if [[ "$CURRENT_ALPHA_SUFFIX" =~ ^[0-9]+$ ]]; then
-              CURRENT_ALPHA_NUM=$((CURRENT_ALPHA_SUFFIX))
-              NEXT_ALPHA_NUM=$((CURRENT_ALPHA_NUM + 1))
-            else
-              echo "Error: Could not parse alpha number from tag '$LATEST_ALPHA_TAG'. Please ensure tags are like ${BASE_VERSION}-alpha.NUMBER" >&2
-              exit 1
-            fi
-          fi
+                  if [[ -n "$LATEST_ALPHA_TAG" ]]; then
+                    CURRENT_ALPHA_SUFFIX="${LATEST_ALPHA_TAG##*-alpha.}"
+                    if [[ "$CURRENT_ALPHA_SUFFIX" =~ ^[0-9]+$ ]]; then
+                      CURRENT_ALPHA_NUM=$((CURRENT_ALPHA_SUFFIX))
+                      NEXT_ALPHA_NUM=$((CURRENT_ALPHA_NUM + 1))
+                    else
+                      echo "Error: Could not parse alpha number from tag '$LATEST_ALPHA_TAG'. Please ensure tags are like ${BASE_VERSION}-alpha.NUMBER" >&2
+                      exit 1
+                    fi
+                  fi
 
-          NEW_TAG="${BASE_VERSION}-alpha.${NEXT_ALPHA_NUM}"
-          echo "Calculated next tag: $NEW_TAG"
+                  NEW_TAG="${BASE_VERSION}-alpha.${NEXT_ALPHA_NUM}"
+                  echo "Calculated next tag: $NEW_TAG"
 
-          echo "tag_name=$NEW_TAG" >> "$GITHUB_OUTPUT"
-          echo "TAG_NAME_ENV=$NEW_TAG" >> "$GITHUB_ENV"
+                  echo "tag_name=$NEW_TAG" >> "$GITHUB_OUTPUT"
+                  echo "TAG_NAME_ENV=$NEW_TAG" >> "$GITHUB_ENV"
 
-      - name: Create and Push Tag
-        run: |
-          set -e
-          echo "Attempting to tag current commit with ${{ env.TAG_NAME_ENV }} and push."
-          git tag "${{ env.TAG_NAME_ENV }}"
-          git push origin "${{ env.TAG_NAME_ENV }}"
-          echo "Tag ${{ env.TAG_NAME_ENV }} pushed successfully."
+            - name: Create and Push Tag
+              run: |
+                  set -e
+                  echo "Attempting to tag current commit with ${{ env.TAG_NAME_ENV }} and push."
+                  git tag "${{ env.TAG_NAME_ENV }}"
+                  git push origin "${{ env.TAG_NAME_ENV }}"
+                  echo "Tag ${{ env.TAG_NAME_ENV }} pushed successfully."
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v5
-        with:
-          version: latest
-          args: release --clean
-          workdir: cli/so # <--- Set the working directory for GoReleaser
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Ensure CGO_ENABLED=0 is set if your .goreleaser.yml relies on it being globally available
-          # or if you remove it from the .goreleaser.yml `env` section.
-          # The env in .goreleaser.yml `builds` section should still work as expected.
-          # CGO_ENABLED: 0
+            - name: Run GoReleaser
+              uses: goreleaser/goreleaser-action@v5
+              with:
+                  version: 2.14.0
+                  args: release --clean
+                  workdir: cli/so # <--- Set the working directory for GoReleaser
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
