@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/benekuehn/socle/cli/so/internal/gh"
 	"github.com/benekuehn/socle/cli/so/internal/git"
@@ -177,9 +176,6 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 	results := make(map[string]branchLogInfo)
 	var mu sync.Mutex
 
-	// Start timing all checks
-	startTime := time.Now()
-
 	// Process each branch in parallel
 	for i := len(stackInfo.FullStack) - 1; i >= 1; i-- {
 		branchName := stackInfo.FullStack[i]
@@ -224,8 +220,6 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 
 	// Wait for all checks to complete
 	wg.Wait()
-	totalDuration := time.Since(startTime)
-	_, _ = fmt.Fprintf(r.stdout, "Total processing time (parallel): %v\n", totalDuration)
 
 	// Process branches in order to maintain the original order
 	for i := len(stackInfo.FullStack) - 1; i >= 1; i-- {
