@@ -65,7 +65,6 @@ brews:
       repository:
           owner: benekuehn
           name: homebrew-tap # Your tap repository name
-          token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
 
       # Commit message template for the tap repository
       commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
