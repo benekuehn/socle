@@ -13,11 +13,9 @@ env:
   # We probably don't need this for a pure Go CLI, but doesn't hurt
   - CGO_ENABLED=0
 
-# Git configuration for monorepo
-git:
-  # Use prefixed tags for the CLI
-  prefix: 'cli/v'
-  # Consider only commits in the CLI directory
+# Monorepo configuration
+monorepo:
+  tag_prefix: cli/v
   dir: cli/so
 
 # Build configuration
