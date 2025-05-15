@@ -38,7 +38,7 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/benekuehn/socle/cli/so/cmd.version={{ trimPrefix "cli/" .Version }}
+      - -X github.com/benekuehn/socle/cli/so/cmd.version={{ .Version }}
 
 # Archive configuration (creates .tar.gz and .zip)
 archives:
