@@ -276,9 +276,9 @@ cd socle/cli/so
 make dev-install
 ```
 The `make dev-install` command will:
-	1. Run all linters to check code quality 
-	2. Execute all tests to verify functionality 
-	3. Build a binary named ⁠so-dev 
+	1. Run all linters to check code quality
+	2. Execute all tests to verify functionality
+	3. Build a binary named ⁠so-dev
 	4. Install it to your Go binary path so it's globally accessible
 
 You can then run your development build from anywhere:
