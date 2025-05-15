@@ -13,6 +13,14 @@ env:
   # We probably don't need this for a pure Go CLI, but doesn't hurt
   - CGO_ENABLED=0
 
+# Git configuration for monorepo
+git:
+  # Use prefixed tags for the CLI
+  tag_filter: 'cli/v*'
+  # Consider only commits in the CLI directory
+  paths:
+    - cli/so
+
 # Build configuration
 builds:
   - # Build for the 'so' CLI
@@ -33,7 +41,7 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/benekuehn/socle/cli/so/cmd.version={{ .Version }}
+      - -X github.com/benekuehn/socle/cli/so/cmd.version={{ trimPrefix "cli/" .Version }}
 
 # Archive configuration (creates .tar.gz and .zip)
 archives:
