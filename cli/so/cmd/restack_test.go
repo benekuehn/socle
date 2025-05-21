@@ -2,7 +2,6 @@
 package cmd
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/benekuehn/socle/cli/so/internal/git"
@@ -10,31 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// setupRepoWithStack helper function
-func setupRepoWithStack(t *testing.T, branches []string) (repoPath string, cleanup func()) {
-	t.Helper()
-	repoPath, cleanup = testutils.SetupGitRepo(t) // Starts with main commit
-
-	// Create and track branches sequentially
-	for i := 1; i < len(branches); i++ {
-		parent := branches[i-1]
-		branch := branches[i]
-		// Create branch off parent
-		testutils.RunCommand(t, repoPath, "git", "checkout", parent)
-		testutils.RunCommand(t, repoPath, "git", "checkout", "-b", branch)
-		// Add a unique commit to distinguish the branch
-		writeFile(t, repoPath, fmt.Sprintf("%s.txt", branch), branch)
-		testutils.RunCommand(t, repoPath, "git", "add", ".")
-		testutils.RunCommand(t, repoPath, "git", "commit", "-m", fmt.Sprintf("feat: commit on %s", branch))
-		// Track it (using runSoCommand with test flags)
-		err := runSoCommand(t, "track", fmt.Sprintf("--test-parent=%s", parent))
-		require.NoError(t, err, "Setup: failed to track branch %s", branch)
-	}
-	// Go back to a known branch (e.g., the tip)
-	testutils.RunCommand(t, repoPath, "git", "checkout", branches[len(branches)-1])
-	return repoPath, cleanup
-}
 
 func TestRestackCommand(t *testing.T) {
 	t.Run("Stack is already up-to-date", func(t *testing.T) {
@@ -129,5 +103,4 @@ func TestRestackCommand(t *testing.T) {
 		assert.True(t, isRebasing, "Git should be in a rebase state after conflict")
 		// TODO: Capture stderr and assert the conflict message was printed? More complex.
 	})
-
 }

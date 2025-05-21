@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 
+	"errors"
+
 	"github.com/benekuehn/socle/cli/so/internal/ui"
 )
 
@@ -146,5 +148,97 @@ func PushBranchWithLease(branchName string, remoteName string) error {
 		// messages in stderr, which RunGitCommand includes in the error.
 		return fmt.Errorf("failed to push branch '%s' with lease to remote '%s': %w", branchName, remoteName, err)
 	}
+	return nil
+}
+
+// FetchAll fetches all branches from the specified remote
+func FetchAll(remoteName string) error {
+	_, err := RunGitCommand("fetch", remoteName)
+	if err != nil {
+		return fmt.Errorf("failed to fetch from remote '%s': %w", remoteName, err)
+	}
+	return nil
+}
+
+// DeleteBranch deletes a local branch
+func DeleteBranch(branchName string) error {
+	_, err := RunGitCommand("branch", "-D", branchName)
+	if err != nil {
+		return fmt.Errorf("failed to delete branch '%s': %w", branchName, err)
+	}
+	return nil
+}
+
+// ErrNotFastForward is returned when a branch cannot be fast-forwarded
+var ErrNotFastForward = errors.New("branch cannot be fast-forwarded")
+
+// FastForwardBranch attempts to fast-forward a branch to match its remote tracking branch
+func FastForwardBranch(branchName, remoteName string) error {
+	// First check if we can fast-forward
+	_, err := RunGitCommand("merge-base", "--is-ancestor", branchName, fmt.Sprintf("%s/%s", remoteName, branchName))
+	if err != nil {
+		return ErrNotFastForward
+	}
+
+	// If we get here, we can fast-forward
+	_, err = RunGitCommand("checkout", branchName)
+	if err != nil {
+		return fmt.Errorf("failed to checkout branch '%s': %w", branchName, err)
+	}
+
+	_, err = RunGitCommand("merge", "--ff-only", fmt.Sprintf("%s/%s", remoteName, branchName))
+	if err != nil {
+		return fmt.Errorf("failed to fast-forward branch '%s': %w", branchName, err)
+	}
+
+	return nil
+}
+
+// ForceUpdateBranch forces a branch to match its remote tracking branch
+func ForceUpdateBranch(branchName, remoteName string) error {
+	_, err := RunGitCommand("checkout", branchName)
+	if err != nil {
+		return fmt.Errorf("failed to checkout branch '%s': %w", branchName, err)
+	}
+
+	_, err = RunGitCommand("reset", "--hard", fmt.Sprintf("%s/%s", remoteName, branchName))
+	if err != nil {
+		return fmt.Errorf("failed to force update branch '%s': %w", branchName, err)
+	}
+
+	return nil
+}
+
+// SetBranchParent updates the tracking information for a branch to point to a new parent.
+func SetBranchParent(branchName, parentName string) error {
+	cmd := exec.Command("git", "branch", "--set-upstream-to="+parentName, branchName)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to set parent for branch '%s' to '%s': %w", branchName, parentName, err)
+	}
+	return nil
+}
+
+// SwitchBranch switches to the specified branch
+func SwitchBranch(branch string) error {
+	cmd := exec.Command("git", "switch", branch)
+	return cmd.Run()
+}
+
+// UpdateBranchParent updates both the tracking and parent configuration for a branch
+func UpdateBranchParent(branchName, parentName string) error {
+	// Update tracking information
+	if err := SetBranchParent(branchName, parentName); err != nil {
+		return fmt.Errorf("failed to set tracking for branch '%s' to '%s': %w", branchName, parentName, err)
+	}
+
+	// Update parent configuration
+	parentConfigKey := fmt.Sprintf("branch.%s.socle-parent", branchName)
+	cmd := exec.Command("git", "config", parentConfigKey, parentName)
+	if err := cmd.Run(); err != nil {
+		// If setting parent fails, try to restore tracking
+		_ = SetBranchParent(branchName, parentName)
+		return fmt.Errorf("failed to set parent configuration for branch '%s' to '%s': %w", branchName, parentName, err)
+	}
+
 	return nil
 }

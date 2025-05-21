@@ -4,10 +4,12 @@ import (
 	"fmt"
 
 	"github.com/google/go-github/v71/github"
+	"github.com/stretchr/testify/mock"
 )
 
 // MockClient implements the ClientInterface for testing
 type MockClient struct {
+	mock.Mock   // Embed testify mock object
 	PRStatuses  map[int]string
 	PRNumbers   map[string]int
 	CounterChan chan string // Channel to receive operation names
@@ -47,13 +49,11 @@ func (c *MockClient) GetPullRequest(number int) (*github.PullRequest, error) {
 	}
 	Counter.Increment("GetPullRequest")
 
-	// Simulate not found error
-	if _, ok := c.PRStatuses[number]; !ok {
-		return nil, fmt.Errorf("pull request #%d not found", number)
+	args := c.Called(number)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
 	}
-
-	// Return a mock PR
-	return &github.PullRequest{}, nil
+	return args.Get(0).(*github.PullRequest), args.Error(1)
 }
 
 // CreatePullRequest simulates creating a PR
@@ -64,7 +64,11 @@ func (c *MockClient) CreatePullRequest(head, base, title, body string, isDraft b
 	}
 	Counter.Increment("CreatePullRequest")
 
-	return &github.PullRequest{}, nil
+	args := c.Called(head, base, title, body, isDraft)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*github.PullRequest), args.Error(1)
 }
 
 // UpdatePullRequestBase simulates updating a PR's base branch
@@ -75,7 +79,11 @@ func (c *MockClient) UpdatePullRequestBase(number int, newBase string) (*github.
 	}
 	Counter.Increment("UpdatePullRequestBase")
 
-	return &github.PullRequest{}, nil
+	args := c.Called(number, newBase)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*github.PullRequest), args.Error(1)
 }
 
 // CreateComment simulates creating a comment
@@ -86,7 +94,11 @@ func (c *MockClient) CreateComment(issueNumber int, body string) (*github.IssueC
 	}
 	Counter.Increment("CreateComment")
 
-	return &github.IssueComment{}, nil
+	args := c.Called(issueNumber, body)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*github.IssueComment), args.Error(1)
 }
 
 // UpdateComment simulates updating a comment
@@ -97,7 +109,11 @@ func (c *MockClient) UpdateComment(commentID int64, body string) (*github.IssueC
 	}
 	Counter.Increment("UpdateComment")
 
-	return &github.IssueComment{}, nil
+	args := c.Called(commentID, body)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*github.IssueComment), args.Error(1)
 }
 
 // FindCommentWithMarker simulates finding a comment with a specific marker
@@ -108,8 +124,8 @@ func (c *MockClient) FindCommentWithMarker(issueNumber int, marker string) (comm
 	}
 	Counter.Increment("FindCommentWithMarker")
 
-	// Always return 0 for simplicity
-	return 0, nil
+	args := c.Called(issueNumber, marker)
+	return args.Get(0).(int64), args.Error(1)
 }
 
 // GetIssueComment simulates retrieving a comment
@@ -120,5 +136,9 @@ func (c *MockClient) GetIssueComment(commentID int64) (*github.IssueComment, err
 	}
 	Counter.Increment("GetIssueComment")
 
-	return &github.IssueComment{}, nil
+	args := c.Called(commentID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*github.IssueComment), args.Error(1)
 }

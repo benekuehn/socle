@@ -47,6 +47,7 @@ type ClientInterface interface {
 	UpdateComment(commentID int64, body string) (*github.IssueComment, error)
 	FindCommentWithMarker(issueNumber int, marker string) (commentID int64, err error)
 	GetIssueComment(commentID int64) (*github.IssueComment, error)
+	GetPullRequestStatus(prNumber int) (status string, prURL string, err error)
 }
 
 var _ ClientInterface = (*Client)(nil)
@@ -322,4 +323,9 @@ func (c *Client) FindCommentWithMarker(issueNumber int, marker string) (commentI
 
 	// Marker not found in any comment
 	return 0, nil // Return 0, nil error signifies "not found"
+}
+
+// CreateClient is a factory function for creating a GitHub client. It can be overridden in tests.
+var CreateClient = func(ctx context.Context, owner, repo string) (ClientInterface, error) {
+	return NewClient(ctx, owner, repo)
 }

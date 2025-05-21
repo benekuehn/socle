@@ -20,11 +20,10 @@ type submittedPrInfo struct {
 
 type submitCmdRunner struct {
 	// Dependencies
-	logger         *slog.Logger
-	ghClient       gh.ClientInterface
-	createGHClient func(ctx context.Context, owner, repo string) (gh.ClientInterface, error)
-	stdout         io.Writer
-	stderr         io.Writer
+	logger   *slog.Logger
+	ghClient gh.ClientInterface
+	stdout   io.Writer
+	stderr   io.Writer
 
 	// Configuration from flags
 	forcePush bool
@@ -106,7 +105,7 @@ func (r *submitCmdRunner) prepareSubmit(ctx context.Context) ([]string, map[stri
 	}
 	r.logger.Debug("Operating on repository", "owner", r.owner, "repoName", r.repoName)
 
-	r.ghClient, err = r.createGHClient(ctx, r.owner, r.repoName)
+	r.ghClient, err = gh.CreateClient(ctx, r.owner, r.repoName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create GitHub client: %w", err)
 	}
@@ -279,9 +278,12 @@ func (r *submitCmdRunner) submitBranch( // Make it a method of submitCmdRunner
 func renderStackCommentBody(stack []string, currentBranch string, stackCommentMarker string, prInfoMap map[string]submittedPrInfo) string {
 	var sb strings.Builder
 	sb.WriteString("**Stack Overview:**\n\n")
-	for i, branchName := range stack {
+	// Iterate through stack in reverse order to show most recent branch first
+	for i := len(stack) - 1; i >= 0; i-- {
+		branchName := stack[i]
 		if i == 0 {
-			continue // Skip base branch
+			sb.WriteString(fmt.Sprintf("* `%s` (base)\n", branchName))
+			continue
 		}
 		prInfo, ok := prInfoMap[branchName]
 		indicator := ""
@@ -302,8 +304,7 @@ func renderStackCommentBody(stack []string, currentBranch string, stackCommentMa
 		}
 	}
 
-	sb.WriteString(fmt.Sprintf("* `%s` (base)\n", stack[0]))
-	sb.WriteString(fmt.Sprintf("\n%s\n", stackCommentMarker))
+	sb.WriteString("\n" + stackCommentMarker + "\n")
 
 	return sb.String()
 }

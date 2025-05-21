@@ -29,6 +29,7 @@ type branchLogInfo struct {
 	parentName      string
 	branchNameStyle func(string) string
 	prText          string
+	prURL           string
 	rebaseStatus    statusResult
 }
 
@@ -44,11 +45,12 @@ type logCmdRunner struct {
 }
 
 var (
-	rebaseDotStyle        = ui.Colors.DotFilledStyle
-	rebaseDotWarningStyle = ui.Colors.DotWarningStyle
-	prDotStyle            = ui.Colors.DotStyle
-	prDotFilledStyle      = ui.Colors.DotFilledStyle
-	prDotSubmittedStyle   = ui.Colors.DotStyle
+	rebaseDotStyle        = ui.Colors.SuccessStyle
+	rebaseDotWarningStyle = ui.Colors.WarningStyle
+	prDotDefaultStyle     = ui.Colors.InfoStyle
+	prDotMergedStyle      = ui.Colors.SuccessStyle
+	prDotSubmittedStyle   = ui.Colors.InfoStyle
+	prDotClosedStyle      = ui.Colors.FailureStyle
 	mutedStyle            = ui.Colors.MutedStyle
 )
 
@@ -80,11 +82,13 @@ func branchEnumerator(items list.Items, i int) string {
 	var secondDot string
 	switch {
 	case strings.Contains(branchInfo.prText, "Merged"):
-		secondDot = prDotFilledStyle.Render("●")
+		secondDot = prDotMergedStyle.Render("●")
 	case strings.Contains(branchInfo.prText, "Open"), strings.Contains(branchInfo.prText, "Draft"):
 		secondDot = prDotSubmittedStyle.Render("●")
+	case strings.Contains(branchInfo.prText, "Closed"):
+		secondDot = prDotClosedStyle.Render("●")
 	default:
-		secondDot = prDotStyle.Render("○")
+		secondDot = prDotDefaultStyle.Render("○")
 	}
 
 	return firstDot + " " + secondDot
@@ -146,7 +150,7 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 		}
 	}
 
-	var ghClient *gh.Client
+	var ghClient gh.ClientInterface
 	var ghClientInitError error
 	remoteName := "origin"
 	remoteURL, errURL := git.GetRemoteURL(remoteName)
@@ -157,7 +161,7 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 		if errParse != nil {
 			ghClientInitError = fmt.Errorf("cannot parse owner/repo from '%s': %w", remoteURL, errParse)
 		} else {
-			client, errCli := gh.NewClient(ctx, owner, repoName)
+			client, errCli := gh.CreateClient(ctx, owner, repoName)
 			if errCli != nil {
 				ghClientInitError = fmt.Errorf("GitHub client init failed: %w", errCli)
 			} else {
@@ -189,10 +193,11 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 			// Get PR status
 			prNumber, err := git.GetStoredPRNumber(branch)
 			var prStatus string
+			var prURL string
 			if err != nil || prNumber == 0 {
 				prStatus = gh.PRStatusNotFound
 			} else if ghClient != nil {
-				prStatus, _, err = ghClient.GetPullRequestStatus(prNumber)
+				prStatus, prURL, err = ghClient.GetPullRequestStatus(prNumber)
 				if err != nil {
 					prStatus = gh.PRStatusAPIError
 				}
@@ -209,6 +214,7 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 				parentName:      parent,
 				branchNameStyle: func(s string) string { return lipgloss.NewStyle().Bold(true).Render(s) },
 				prText:          prStatus,
+				prURL:           prURL,
 				rebaseStatus:    rebaseStatusResult,
 			}
 
@@ -244,21 +250,46 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 			statusText = "(up-to-date"
 		}
 
-		switch info.prText {
-		case gh.PRStatusDraft:
-			statusText += ", pr drafted"
-		case gh.PRStatusMerged:
-			statusText += ", pr merged"
-		case gh.PRStatusOpen:
-			statusText += ", pr open"
-		case gh.PRStatusClosed:
-			statusText += ", pr closed"
-		case gh.PRStatusAPIError:
-			statusText += ", pr check failed"
-		case gh.PRStatusNotFound:
-			statusText += ", no PR submitted"
-		default:
-			statusText += ", no PR submitted"
+		// Add PR status with hyperlink if URL exists
+		if info.prURL != "" {
+			// OSC 8 escape sequence for hyperlinks
+			prStatus := ""
+			switch info.prText {
+			case gh.PRStatusDraft:
+				prStatus = "pr drafted"
+			case gh.PRStatusMerged:
+				prStatus = "pr merged"
+			case gh.PRStatusOpen:
+				prStatus = "pr open"
+			case gh.PRStatusClosed:
+				prStatus = "pr closed"
+			case gh.PRStatusAPIError:
+				prStatus = "pr check failed"
+			case gh.PRStatusNotFound:
+				prStatus = "no PR submitted"
+			default:
+				prStatus = "no PR submitted"
+			}
+			prLink := fmt.Sprintf("\x1b]8;;%s\x1b\\%s\x1b]8;;\x1b\\", info.prURL, prStatus)
+			statusText += ", " + prLink
+		} else {
+			// No PR URL, just add the status text
+			switch info.prText {
+			case gh.PRStatusDraft:
+				statusText += ", pr drafted"
+			case gh.PRStatusMerged:
+				statusText += ", pr merged"
+			case gh.PRStatusOpen:
+				statusText += ", pr open"
+			case gh.PRStatusClosed:
+				statusText += ", pr closed"
+			case gh.PRStatusAPIError:
+				statusText += ", pr check failed"
+			case gh.PRStatusNotFound:
+				statusText += ", no PR submitted"
+			default:
+				statusText += ", no PR submitted"
+			}
 		}
 		statusText += ")"
 

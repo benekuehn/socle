@@ -13,70 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- Mock GitHub Client ---
-
-type MockGHClient struct {
-	mock.Mock // Embed testify mock object
-}
-
-func (m *MockGHClient) GetPullRequest(number int) (*github.PullRequest, error) {
-	args := m.Called(number)
-	// Return nil if the first return arg isn't a PR pointer
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*github.PullRequest), args.Error(1)
-}
-
-func (m *MockGHClient) CreatePullRequest(head, base, title, body string, isDraft bool) (*github.PullRequest, error) {
-	args := m.Called(head, base, title, body, isDraft)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*github.PullRequest), args.Error(1)
-}
-
-func (m *MockGHClient) UpdatePullRequestBase(number int, newBase string) (*github.PullRequest, error) {
-	args := m.Called(number, newBase)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*github.PullRequest), args.Error(1)
-}
-
-func (m *MockGHClient) CreateComment(issueNumber int, body string) (*github.IssueComment, error) {
-	args := m.Called(issueNumber, body)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*github.IssueComment), args.Error(1)
-}
-
-func (m *MockGHClient) UpdateComment(commentID int64, body string) (*github.IssueComment, error) {
-	args := m.Called(commentID, body)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*github.IssueComment), args.Error(1)
-}
-
-func (m *MockGHClient) FindCommentWithMarker(issueNumber int, marker string) (commentID int64, err error) {
-	args := m.Called(issueNumber, marker)
-	return args.Get(0).(int64), args.Error(1) // Assert type for int64
-}
-
-func (m *MockGHClient) GetIssueComment(commentID int64) (*github.IssueComment, error) {
-	args := m.Called(commentID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*github.IssueComment), args.Error(1)
-}
-
 func TestSubmitCommand(t *testing.T) {
-	originalCreateGHClient := createGHClient // Store original
+	originalCreateGHClient := gh.CreateClient // Store original
 	// Restore original after all tests in this function finish
-	t.Cleanup(func() { createGHClient = originalCreateGHClient })
+	t.Cleanup(func() { gh.CreateClient = originalCreateGHClient })
 
 	t.Run("Submit first branch creates PR and comment", func(t *testing.T) {
 		// Setup: main -> feature-a (tracked)
@@ -86,8 +26,8 @@ func TestSubmitCommand(t *testing.T) {
 		testutils.RunCommand(t, repoPath, "git", "checkout", "feature-a") // Be on the branch to submit
 
 		// --- Setup Mock ---
-		mockClient := new(MockGHClient)
-		createGHClient = func(ctx context.Context, owner, repo string) (gh.ClientInterface, error) {
+		mockClient := gh.NewMockClient()
+		gh.CreateClient = func(ctx context.Context, owner, repo string) (gh.ClientInterface, error) {
 			assert.Equal(t, "test-owner", owner)
 			assert.Equal(t, "test-repo", repo)
 			return mockClient, nil
@@ -138,8 +78,8 @@ func TestSubmitCommand(t *testing.T) {
 		testutils.RunCommand(t, repoPath, "git", "checkout", "feature-b")                                          // Be on the branch to submit
 
 		// --- Setup Mock ---
-		mockClient := new(MockGHClient)
-		createGHClient = func(ctx context.Context, owner, repo string) (gh.ClientInterface, error) {
+		mockClient := gh.NewMockClient()
+		gh.CreateClient = func(ctx context.Context, owner, repo string) (gh.ClientInterface, error) {
 			assert.Equal(t, "test-owner", owner)
 			assert.Equal(t, "test-repo", repo)
 			return mockClient, nil
@@ -159,7 +99,7 @@ func TestSubmitCommand(t *testing.T) {
 		).Once()
 		// Assume base doesn't need update: UpdatePullRequestBase NOT called
 		// Expect comment update for feature-a's PR (comment ID 5001)
-		expectedBody101 := "**Stack Overview:**\n\n* **#101**  👈\n* **#102** \n* `main` (base)\n\n<!-- socle-stack-overview -->\n"
+		expectedBody101 := "**Stack Overview:**\n\n* **#102** \n* **#101**  👈\n* `main` (base)\n\n<!-- socle-stack-overview -->\n"
 		mockClient.On("UpdateComment", int64(5001), mock.MatchedBy(func(body string) bool {
 			return body == expectedBody101
 		})).Return(
@@ -175,7 +115,7 @@ func TestSubmitCommand(t *testing.T) {
 		).Once()
 		// Expect comment creation for feature-b's PR
 		mockClient.On("FindCommentWithMarker", 102, mock.AnythingOfType("string")).Return(int64(0), nil).Once()
-		expectedBody102 := "**Stack Overview:**\n\n* **#101** \n* **#102**  👈\n* `main` (base)\n\n<!-- socle-stack-overview -->\n"
+		expectedBody102 := "**Stack Overview:**\n\n* **#102**  👈\n* **#101** \n* `main` (base)\n\n<!-- socle-stack-overview -->\n"
 		mockClient.On("CreateComment", 102, mock.MatchedBy(func(body string) bool {
 			return body == expectedBody102
 		})).Return(

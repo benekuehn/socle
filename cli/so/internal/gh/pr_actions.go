@@ -62,7 +62,7 @@ func SubmitBranch(ctx context.Context, ghClient ClientInterface, cmd *cobra.Comm
 			// No need to assign prNumber = 0 here, the check 'if finalPR == nil' below handles it.
 		} else {
 			finalPR = updatedPR
-			fmt.Printf("  Verified/Updated PR #%d: %s\\n", finalPR.GetNumber(), finalPR.GetHTMLURL())
+			fmt.Printf("  Verified/Updated PR #%d: %s\n", finalPR.GetNumber(), finalPR.GetHTMLURL())
 			if errSet := git.SetStoredPRNumber(branch, finalPR.GetNumber()); errSet != nil {
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "%s", ui.Colors.FailureStyle.Render(fmt.Sprintf("  CRITICAL WARNING: Failed to store PR number %d locally after update for branch '%s': %v\\n", finalPR.GetNumber(), branch, errSet)))
 			}
@@ -199,7 +199,7 @@ func promptForPRDetails(cmd *cobra.Command, branch, parent string, opts SubmitBr
 		if opts.TestSubmitEditConfirm {
 			editBody = true
 		} else {
-			confirmPrompt := &survey.Confirm{Message: "Edit description before submitting?", Default: templateContent == ""}
+			confirmPrompt := &survey.Confirm{Message: "Edit description before submitting?", Default: false}
 			surveyErr = survey.AskOne(confirmPrompt, &editBody, survey.WithStdio(os.Stdin, os.Stdout, os.Stderr))
 			if surveyErr != nil {
 				return "", "", handleSurveyInterrupt(surveyErr, "Submit cancelled during edit confirmation.")
