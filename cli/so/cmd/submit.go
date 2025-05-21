@@ -5,14 +5,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/benekuehn/socle/cli/so/internal/gh"
-
 	"github.com/spf13/cobra"
 )
-
-var createGHClient = func(ctx context.Context, owner, repo string) (gh.ClientInterface, error) {
-	return gh.NewClient(ctx, owner, repo)
-}
 
 var submitCmd = &cobra.Command{
 	Use:   "submit",
@@ -20,7 +14,7 @@ var submitCmd = &cobra.Command{
 	Long: `Pushes branches in the current stack to the remote ('origin' by default)
 and creates or updates corresponding GitHub Pull Requests.
 
-- Requires GITHUB_TOKEN environment variable with 'repo' scope.
+- Requires GITHUB_TOKEN environment variable with 'repo' scope or auth setup via 'gh auth login'.
 - Reads PR templates from .github/ or root directory.
 - Creates Draft PRs by default (use --no-draft to override).
 - Stores PR numbers locally in '.git/config' for future updates.`,
@@ -29,10 +23,9 @@ and creates or updates corresponding GitHub Pull Requests.
 		logger := slog.Default()
 
 		runner := &submitCmdRunner{
-			logger:         logger,
-			createGHClient: createGHClient,
-			stdout:         cmd.OutOrStdout(),
-			stderr:         cmd.ErrOrStderr(),
+			logger: logger,
+			stdout: cmd.OutOrStdout(),
+			stderr: cmd.ErrOrStderr(),
 
 			// Populate config from flags
 			forcePush: cmd.Flag("force").Changed,
