@@ -28,11 +28,9 @@ so --version
 Most so commands need to be run from within a Git repository.
 
 <!-- CLI_REFERENCE_START -->
-
-_This section is auto-generated. Do not edit manually._
+*This section is auto-generated. Do not edit manually.*
 
 ### so bottom
-
 Navigates to the first branch stacked directly on top of the base branch.
 
 The stack is determined by the tracking information set via 'so track'.
@@ -55,15 +53,13 @@ so bottom [flags]
 ---
 
 ### so create
-
 Creates a new branch stacked on top of the current branch.
 
 If a [branch-name] is not provided, you will be prompted for one.
 
 If there are uncommitted changes in the working directory:
-
--   They will be staged and committed onto the _new_ branch.
--   You must provide a commit message via the -m flag, or you will be prompted.
+  - They will be staged and committed onto the *new* branch.
+  - You must provide a commit message via the -m flag, or you will be prompted.
 
 ```
 so create [branch-name] [flags]
@@ -83,7 +79,6 @@ so create [branch-name] [flags]
 ---
 
 ### so down
-
 Navigates one level down the stack towards the base branch.
 
 The stack is determined by the tracking information set via 'so track'.
@@ -106,7 +101,6 @@ so down [flags]
 ---
 
 ### so log
-
 Shows the sequence of tracked branches leading from the stack's base
 branch to the current branch, based on metadata set by 'socle track'.
 Includes status indicating if a branch needs rebasing onto its parent.
@@ -128,21 +122,19 @@ so log [flags]
 ---
 
 ### so restack
-
 Updates the current stack by rebasing each branch sequentially onto its updated parent.
 Handles remote 'origin' automatically.
 
 Process:
-
 1. Checks for clean state & existing Git rebase.
 2. Fetches the base branch from 'origin' (unless --no-fetch).
 3. Rebases each branch in the stack onto the latest commit of its parent.
-    - Skips branches that are already up-to-date.
+   - Skips branches that are already up-to-date.
 4. If conflicts occur:
-    - Stops and instructs you to use standard Git commands (status, add, rebase --continue / --abort).
-    - Run 'so restack' again after resolving or aborting the Git rebase.
+   - Stops and instructs you to use standard Git commands (status, add, rebase --continue / --abort).
+   - Run 'so restack' again after resolving or aborting the Git rebase.
 5. If successful:
-    - Prompts to force-push updated branches to 'origin' (use --force-push or --no-push to skip prompt).
+   - Prompts to force-push updated branches to 'origin' (use --force-push or --no-push to skip prompt).
 
 ```
 so restack [flags]
@@ -164,14 +156,13 @@ so restack [flags]
 ---
 
 ### so submit
-
 Pushes branches in the current stack to the remote ('origin' by default)
 and creates or updates corresponding GitHub Pull Requests.
 
--   Requires GITHUB_TOKEN environment variable with 'repo' scope.
--   Reads PR templates from .github/ or root directory.
--   Creates Draft PRs by default (use --no-draft to override).
--   Stores PR numbers locally in '.git/config' for future updates.
+- Requires GITHUB_TOKEN environment variable with 'repo' scope or auth setup via 'gh auth login'.
+- Reads PR templates from .github/ or root directory.
+- Creates Draft PRs by default (use --no-draft to override).
+- Stores PR numbers locally in '.git/config' for future updates.
 
 ```
 so submit [flags]
@@ -192,8 +183,36 @@ so submit [flags]
 
 ---
 
-### so top
+### so sync
+Syncs all branches with remote, prompting to delete any branches for PRs that have been merged or closed.
+Restacks all branches in your repository that can be restacked without conflicts.
+If trunk cannot be fast-forwarded to match remote, overwrites trunk with the remote version.
 
+Process:
+1. Fetches all branches from remote
+2. Checks PR status for each branch
+3. Prompts to delete branches with merged/closed PRs
+4. Restacks branches that can be restacked without conflicts
+5. Updates trunk to match remote if needed
+
+```
+so sync [flags]
+```
+
+```
+  -h, --help         help for sync
+      --no-restack   Skip restacking branches
+```
+
+### Options inherited from parent commands
+
+```
+      --debug   Enable debug logging output
+```
+
+---
+
+### so top
 Navigates to the highest branch in the current stack.
 
 The stack is determined by the tracking information set via 'so track'.
@@ -216,7 +235,6 @@ so top [flags]
 ---
 
 ### so track
-
 Associates the current branch with a parent branch to define its position
 within a stack. This allows 'socle show' to display the specific stack you are on.
 
@@ -236,8 +254,27 @@ so track [flags]
 
 ---
 
-### so up
+### so untrack
+Removes a branch from the stack by clearing its tracking information.
+A branch can only be untracked if it has no children depending on it higher in the stack.
 
+```
+so untrack [flags]
+```
+
+```
+  -h, --help   help for untrack
+```
+
+### Options inherited from parent commands
+
+```
+      --debug   Enable debug logging output
+```
+
+---
+
+### so up
 Navigates one level up the stack towards the tip.
 
 The stack is determined by the tracking information set via 'so track'.
@@ -256,7 +293,6 @@ so up [flags]
 ```
       --debug   Enable debug logging output
 ```
-
 <!-- CLI_REFERENCE_END -->
 
 ### Configuration

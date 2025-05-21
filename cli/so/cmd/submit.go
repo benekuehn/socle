@@ -14,7 +14,7 @@ var submitCmd = &cobra.Command{
 	Long: `Pushes branches in the current stack to the remote ('origin' by default)
 and creates or updates corresponding GitHub Pull Requests.
 
-- Requires GITHUB_TOKEN environment variable with 'repo' scope.
+- Requires GITHUB_TOKEN environment variable with 'repo' scope or auth setup via 'gh auth login'.
 - Reads PR templates from .github/ or root directory.
 - Creates Draft PRs by default (use --no-draft to override).
 - Stores PR numbers locally in '.git/config' for future updates.`,
