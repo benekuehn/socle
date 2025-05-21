@@ -11,7 +11,22 @@ permissions:
     contents: write # Required to push tags and create releases
 
 jobs:
-    goreleaser:
+    test-and-lint:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: "1.24.2"
+
+            - name: Run make all
+              run: make all
+
+    alpha-release:
+        needs: test-and-lint
         runs-on: ubuntu-latest
         steps:
             - name: Checkout code
@@ -22,7 +37,7 @@ jobs:
             - name: Set up Go
               uses: actions/setup-go@v5
               with:
-                  go-version: "1.22" # Specify your project's Go version
+                  go-version: "1.24.2"
 
             - name: Configure Git user
               run: |
@@ -73,6 +88,6 @@ jobs:
               with:
                   version: 2.x
                   args: release --clean
-                  workdir: cli/so # <--- Set the working directory for GoReleaser
+                  workdir: cli/so
               env:
                   GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

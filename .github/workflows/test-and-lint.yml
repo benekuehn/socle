@@ -1,0 +1,24 @@
+name: Test & Lint
+
+on:
+  push:
+    branches:
+      - '**'  # This will run on all branches
+  pull_request:
+    branches:
+      - '**'  # This will run on PRs targeting any branch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.2"
+
+      - name: Run make all
+        run: make all 
