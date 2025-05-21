@@ -3,10 +3,14 @@ name: Test & Lint
 on:
   push:
     branches:
-      - '**'  # This will run on all branches
+      - '**'
+    paths:
+      - "cli/so/**"
   pull_request:
     branches:
-      - '**'  # This will run on PRs targeting any branch
+      - '**'
+    paths:
+      - "cli/so/**"
 
 jobs:
   build:
