@@ -90,7 +90,6 @@ func ParseOwnerAndRepo(remoteUrl string) (owner string, repo string, err error) 
 // FetchBranch updates the remote-tracking branch for a given local branch
 // from the specified remote (e.g., fetch 'origin' to update 'origin/master').
 func FetchBranch(branchName string, remoteName string) error {
-	fmt.Printf("  (Running: git fetch %s)\n", remoteName)
 	_, err := RunGitCommand("fetch", remoteName)
 	if err != nil {
 		return fmt.Errorf("failed to fetch remote '%s': %w", remoteName, err)
@@ -106,20 +105,17 @@ func FetchBranch(branchName string, remoteName string) error {
 		return fmt.Errorf("fetch successful, but failed to get current branch to restore later: %w", cbErr)
 	}
 	if currentBranch != branchName {
-		fmt.Printf("  Checking out '%s' to update from remote...\n", branchName)
 		errCheckout := CheckoutBranch(branchName)
 		if errCheckout != nil {
 			return fmt.Errorf("fetch successful, but failed to checkout '%s' to update: %w", branchName, errCheckout)
 		}
 		// Defer switching back
 		defer func() {
-			fmt.Printf("  Switching back to %s...\n", currentBranch)
 			_ = CheckoutBranch(currentBranch) // Ignore error on cleanup
 		}()
 	}
 
 	remoteTrackingBranch := fmt.Sprintf("%s/%s", remoteName, branchName)
-	fmt.Printf("  Attempting fast-forward merge for '%s' from '%s'...\n", branchName, remoteTrackingBranch)
 	_, errMerge := RunGitCommand("merge", "--ff-only", remoteTrackingBranch)
 	if errMerge != nil {
 		// If ff-only fails, it means local branch has diverged or remote tracking branch wasn't updated correctly.
