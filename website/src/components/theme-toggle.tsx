@@ -1,6 +1,6 @@
 'use client'
 
-import { Moon, Sun, Monitor } from 'lucide-react'
+import { Moon, Sun } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
 type Theme = 'light' | 'dark'

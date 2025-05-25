@@ -4,8 +4,6 @@ import { useEffect, useState, useRef } from "react";
 const TYPING_INTERVAL = 100;
 const POST_TYPING_DELAY = 500; // Delay after typing before showing output
 const OUTPUT_DURATION = 2000; // How long output stays visible
-const POST_OUTPUT_CLEANUP_DELAY = 400; // Delay after output hides before clearing typed command
-const SCREEN_CLEAR_DURATION = 400; // Duration for the "clearing" visual state
 const PREFERS_REDUCED_MOTION_INITIAL_DELAY = 50; // Short delay if any for reduced motion static content settle
 const INITIAL_TERMINAL_SETTLE_DELAY = 1000; // New: Longer delay for terminal UI to animate in
 const INTER_COMMAND_CLEAR_DELAY = 300; // New: Delay for blank terminal between commands

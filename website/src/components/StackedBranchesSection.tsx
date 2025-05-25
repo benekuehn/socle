@@ -1,8 +1,7 @@
 "use client"
 
 import { motion, AnimatePresence } from "framer-motion"
-import { useRef, useEffect, useState } from "react"
-import Link from "next/link"
+import { useRef, useEffect, useState, useMemo } from "react"
 import { InternalLink } from "./InternalLink"
 
 const paragraphs = [
@@ -21,7 +20,6 @@ const paragraphs = [
 ]
 
 const STEP_HEIGHT = 0.7; // as fraction of viewport height
-const TOP_SPACER = 0.01;
 const BOTTOM_SPACER = STEP_HEIGHT;
 const BREAK = 60; // px, the break before the next paragraph takes over
 
@@ -101,7 +99,10 @@ const TopSVG = () => (
 
 export function StackedBranchesSection() {
   const sectionRef = useRef<HTMLDivElement>(null);
-  const triggerRefs = paragraphs.map(() => useRef<HTMLDivElement>(null));
+  const triggerRef0 = useRef<HTMLDivElement>(null);
+  const triggerRef1 = useRef<HTMLDivElement>(null);
+  const triggerRef2 = useRef<HTMLDivElement>(null);
+  const triggerRefs = useMemo(() => [triggerRef0, triggerRef1, triggerRef2], []);
   const [visibleIdx, setVisibleIdx] = useState<number|null>(null);
   const [middleVisible, setMiddleVisible] = useState(false);
 
@@ -190,12 +191,12 @@ export function StackedBranchesSection() {
           </div>
           <div style={{ height: `1vh` }} />
           <div
-            ref={triggerRefs[0]}
+            ref={triggerRef0}
             style={{ height: `0.5vh` }}
             aria-hidden
           />
           <div
-            ref={triggerRefs[1]}
+            ref={triggerRef1}
             style={{ height: `40vh` }}
             aria-hidden
           />
