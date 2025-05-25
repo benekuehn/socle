@@ -4,6 +4,7 @@ import { GeistMono } from 'geist/font/mono';
 import "./globals.css";
 import Header from "@/components/Header";
 import { SoftwareApplication, WithContext } from 'schema-dts'
+import { Analytics } from "@vercel/analytics/next"
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://socle.dev'),
@@ -77,6 +78,7 @@ export default function RootLayout({
         <Header />
         <main className="pt-16">
           {children}
+          <Analytics />
         </main>
       </body>
     </html>
