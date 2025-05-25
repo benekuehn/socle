@@ -50,8 +50,9 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 	}
 
 	// Extract the information we need
-	stack := stackInfo.CurrentStack
+	stack := stackInfo.FullStack
 	baseBranch := stackInfo.BaseBranch
+	currentBranch := stackInfo.CurrentBranch
 
 	r.logger.Debug("Identified stack for restacking", "stack", stack, "base", baseBranch)
 
@@ -60,14 +61,13 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 		return nil
 	}
 
-	// --- Defer Checkout Back ---
+	// Defer returning to the original branch
 	defer func() {
 		// Only run if no rebase is currently in progress (i.e., we didn't exit due to conflict)
 		if !git.IsRebaseInProgress() {
-			currentBranchAfter, _ := git.GetCurrentBranch()
-			if currentBranchAfter != baseBranch {
+			if currentBranch != baseBranch {
 				r.logger.Debug("Checking out original branch", "name", baseBranch)
-				errCheckout := git.CheckoutBranch(baseBranch)
+				errCheckout := git.CheckoutBranch(currentBranch)
 				if errCheckout != nil {
 					_, _ = fmt.Fprintf(r.stderr, ui.Colors.WarningStyle.Render("Warning: Failed to checkout original branch '%s': %v\\n"), baseBranch, errCheckout)
 				}
@@ -95,7 +95,7 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 		if err := git.FetchBranch(baseBranch, remoteName); err != nil {
 			return fmt.Errorf("failed to fetch base branch '%s': %w.\\nUse --no-fetch to skip", baseBranch, err)
 		}
-		_, _ = fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("Fetch complete."))
+		r.logger.Debug("Fetch complete.")
 	} else if r.noFetch {
 		r.logger.Debug("Skipping fetch (--no-fetch).")
 	}
@@ -148,8 +148,7 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 			// CONFLICT Case
 			_, _ = fmt.Fprintln(r.stderr, "")
 			_, _ = fmt.Fprintln(r.stderr, ui.Colors.WarningStyle.Render("⚠️ Rebase paused due to conflicts."))
-			_, _ = fmt.Fprintln(r.stderr, "Restack paused due to conflicts.")
-			_, _ = fmt.Fprintf(r.stderr, "Please resolve the conflicts in branch '%s' and then run:\\n", branch)
+			_, _ = fmt.Fprintf(r.stderr, "Please resolve the conflicts in branch '%s' and then run:\n", branch)
 			_, _ = fmt.Fprintln(r.stderr, "  1. Run 'git add <resolved-files...>'.")
 			_, _ = fmt.Fprintln(r.stderr, "  2. Run 'git rebase --continue'.")
 			_, _ = fmt.Fprintln(r.stderr, "   (To cancel, run 'git rebase --abort')")
@@ -161,11 +160,10 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 
 		// Other Unexpected Rebase Failure
 		return fmt.Errorf("unexpected error during rebase of '%s': %w", branch, err)
-
 	}
 
 	// --- Post-Success ---
-	_, _ = fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("\n--- Stack Rebase Completed Successfully ---"))
+	_, _ = fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("\n✓ Stack Rebase Completed Successfully\n"))
 
 	// Determine if push is desired
 	doPush := false

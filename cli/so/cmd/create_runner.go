@@ -217,7 +217,7 @@ func (r *createCmdRunner) run() error {
 					_, _ = fmt.Fprint(r.stderr, ui.Colors.FailureStyle.Render("Commit failed (hooks?). Aborting.\\n"))
 					return fmt.Errorf("failed to commit changes: %w", err)
 				}
-				_, _ = fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("Changes committed successfully."))
+				r.logger.Debug("Changes committed successfully..")
 				commitOccurred = true
 			} else {
 				// This can happen if `git add .` staged nothing (e.g. only .gitignore changes)
@@ -242,7 +242,7 @@ func (r *createCmdRunner) run() error {
 
 	// Success! Prevent cleanup
 	cleanupNeeded = false
-	finalMessage := fmt.Sprintf("Successfully created and tracked branch '%s' on top of '%s'.", newBranchName, parentBranch)
+	finalMessage := fmt.Sprintf("✓ Created and tracked branch '%s' on top of '%s'.", newBranchName, parentBranch)
 	if commitOccurred {
 		finalMessage += " Changes committed."
 	} else if hasChanges && !commitOccurred {

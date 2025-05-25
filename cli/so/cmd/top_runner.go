@@ -31,7 +31,7 @@ func (r *topCmdRunner) run() error {
 	r.logger.Debug("Current branch index in full stack", "index", currentIndex)
 
 	if currentIndex == len(stackInfo.FullStack)-1 {
-		_, _ = fmt.Fprintf(r.stdout, "Already on the top branch: '%s'", stackInfo.CurrentBranch)
+		_, _ = fmt.Fprintf(r.stdout, "Already on the top branch: '%s'\n", stackInfo.CurrentBranch)
 		return nil
 	}
 
