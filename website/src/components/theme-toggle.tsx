@@ -3,10 +3,10 @@
 import { Moon, Sun, Monitor } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
-type Theme = 'system' | 'light' | 'dark'
+type Theme = 'light' | 'dark'
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>('system')
+  const [theme, setTheme] = useState<Theme>('dark')
 
   useEffect(() => {
     // Check localStorage first
@@ -28,14 +28,7 @@ export function ThemeToggle() {
 
   const setThemeWithStorage = (newTheme: Theme) => {
     setTheme(newTheme)
-    if (newTheme === 'system') {
-      localStorage.removeItem('theme')
-      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        document.documentElement.classList.add('dark')
-      } else {
-        document.documentElement.classList.remove('dark')
-      }
-    } else if (newTheme === 'dark') {
+    if (newTheme === 'dark') {
       localStorage.setItem('theme', 'dark')
       document.documentElement.classList.add('dark')
     } else {
@@ -45,7 +38,7 @@ export function ThemeToggle() {
   }
 
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center gap-2">
       <button
         onClick={() => setThemeWithStorage('light')}
         className={`p-2 rounded-md transition-colors ${
@@ -56,17 +49,6 @@ export function ThemeToggle() {
         title="Light mode"
       >
         <Sun className="w-4 h-4" />
-      </button>
-      <button
-        onClick={() => setThemeWithStorage('system')}
-        className={`p-2 rounded-md transition-colors ${
-          theme === 'system'
-            ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
-            : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
-        }`}
-        title="System preference"
-      >
-        <Monitor className="w-4 h-4" />
       </button>
       <button
         onClick={() => setThemeWithStorage('dark')}

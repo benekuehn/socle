@@ -8,8 +8,8 @@
 }
 
 .dark {
-    --background: #18181b;
-    --foreground: #ffffff;
+    --background: var(--color-zinc-950);
+    --foreground: var(--color-zinc-450);
 }
 
 body {

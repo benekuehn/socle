@@ -36,10 +36,9 @@ export const TerminalDemo: React.FC = () => {
     }
   }, [terminalHeight]);
 
-  // Determine explanation based on currentCommand
   let commandExplanation = '';
   if (currentCommand === 'so restack') {
-    commandExplanation = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.';
+    commandExplanation = 'Rebase the current stack onto the latest base branch';
   } else {
     commandExplanation = 'Shows the sequence of tracked branches in your stack';
   }
