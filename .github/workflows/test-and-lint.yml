@@ -25,4 +25,5 @@ jobs:
           go-version: "1.24.2"
 
       - name: Run make all
+        working-directory: cli/so
         run: make all 
