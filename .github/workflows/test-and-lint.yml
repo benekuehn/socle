@@ -4,11 +4,6 @@ permissions:
     contents: read
 
 on:
-    push:
-        branches:
-            - "**"
-        paths:
-            - "cli/so/**"
     pull_request:
         branches:
             - "**"
@@ -31,7 +26,8 @@ jobs:
               uses: golangci/golangci-lint-action@v4
               with:
                   version: latest
-                  args: --timeout=5m
+                  args: --timeout=1m
+                  working-directory: cli/so
 
             - name: Run make all
               working-directory: cli/so
