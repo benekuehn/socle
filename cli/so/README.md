@@ -1,11 +1,10 @@
 # `so` - A CLI for Stacked Branch Workflows
 
-`so` is a CLI tool designed to simplify working with stacked Git branches and pull requests. It helps manage the relationships between dependent branches, automating common tasks like rebasing and creating sequential branches.
+`so` is a command-line tool designed to simplify working with stacked Git branches and pull requests. It helps manage the relationships between dependent branches, automating common tasks like rebasing and creating sequential branches.
 This tool makes stacked development workflows smoother by adding metadata locally to your Git repository configuration, complementing native Git commands.
 
 ## Installation
 
-Using Homebrew (Recommended)
 The easiest way to install ⁠so is through Homebrew:
 
 ```bash
