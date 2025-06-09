@@ -25,6 +25,7 @@ Process:
 		logger := slog.Default()
 
 		noFetch, _ := cmd.Flags().GetBool("test-no-fetch")
+		noSurvey, _ := cmd.Flags().GetBool("test-no-survey")
 
 		runner := &syncCmdRunner{
 			logger: logger,
@@ -35,6 +36,7 @@ Process:
 			// Populate config from flags
 			doRestack: !cmd.Flag("no-restack").Changed,
 			noFetch:   noFetch,
+			noSurvey:   noSurvey,
 		}
 
 		return runner.run(cmd)
@@ -45,5 +47,7 @@ func init() {
 	AddCommand(syncCmd)
 	syncCmd.Flags().Bool("no-restack", false, "Skip restacking branches")
 	syncCmd.Flags().Bool("test-no-fetch", false, "TESTING: Skip fetching from remote")
+	syncCmd.Flags().Bool("test-no-survey", false, "TESTING: Auto-answer yes to all prompts")
 	_ = syncCmd.Flags().MarkHidden("test-no-fetch")
+	_ = syncCmd.Flags().MarkHidden("test-no-survey")
 }

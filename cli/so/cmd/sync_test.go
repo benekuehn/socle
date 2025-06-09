@@ -25,16 +25,16 @@ func TestSyncCommand_MergedPRs(t *testing.T) {
 	mockClient.PRStatuses[101] = gh.PRStatusMerged
 	mockClient.PRStatuses[102] = gh.PRStatusClosed
 
-	// Override the GitHub client creation function
+	// Override the GitHub client creation function BEFORE running the sync command
 	originalCreateGHClient := gh.CreateClient
 	gh.CreateClient = func(ctx context.Context, owner, repo string) (gh.ClientInterface, error) {
 		return mockClient, nil
 	}
 	t.Cleanup(func() { gh.CreateClient = originalCreateGHClient })
 
-	// Run the sync command (simulate user confirming deletion)
-	// For now, just check that the output contains the expected prompt and status
-	_, _, err := runSoCommandWithOutput(t, "sync", "--test-no-fetch")
+	// Run the sync command with auto-confirmation for deletion
+	// Use --test-yes to skip the interactive prompt
+	_, _, err := runSoCommandWithOutput(t, "sync", "--test-no-fetch", "--test-no-survey")
 
 	require.NoError(t, err)
 }

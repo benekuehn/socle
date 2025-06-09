@@ -25,6 +25,7 @@ type syncCmdRunner struct {
 	// Config flags
 	doRestack bool
 	noFetch   bool
+	noSurvey   bool // Auto-confirm any prompts for tests
 }
 
 func (r *syncCmdRunner) run(cmd *cobra.Command) error {
@@ -57,7 +58,7 @@ func (r *syncCmdRunner) run(cmd *cobra.Command) error {
 		return fmt.Errorf("cannot parse owner/repo from remote '%s' URL '%s': %w", remoteName, remoteURL, err)
 	}
 
-	ghClient, err := gh.NewClient(context.Background(), owner, repoName)
+	ghClient, err := gh.CreateClient(context.Background(), owner, repoName)
 	if err != nil {
 		return fmt.Errorf("failed to create GitHub client: %w", err)
 	}
@@ -144,12 +145,14 @@ func (r *syncCmdRunner) run(cmd *cobra.Command) error {
 			_, _ = fmt.Fprintf(r.stdout, "  - %s\n", branch)
 		}
 
-		confirm := false
-		prompt := &survey.Confirm{
-			Message: "Delete these " + strconv.Itoa(len(branchesToDelete)) + " branches?",
-		}
-		if err := survey.AskOne(prompt, &confirm); err != nil {
-			return fmt.Errorf("failed to get user confirmation: %w", err)
+		confirm := r.noSurvey // Auto-confirm for tests
+		if !r.noSurvey {
+			prompt := &survey.Confirm{
+				Message: "Delete these " + strconv.Itoa(len(branchesToDelete)) + " branches?",
+			}
+			if err := survey.AskOne(prompt, &confirm); err != nil {
+				return fmt.Errorf("failed to get user confirmation: %w", err)
+			}
 		}
 
 		if confirm {
