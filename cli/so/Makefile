@@ -55,7 +55,7 @@ docs:
 	@echo "CLI documentation updated in README.md"
 
 # Run common checks (Example 'all' target)
-all: fmt lint-fix test
+all: fmt lint test
 
 # Development build - installs so-dev globally
 dev:

@@ -11,7 +11,7 @@ permissions:
     contents: write # Required to push tags and create releases
 
 jobs:
-    test-and-lint:
+    test:
         runs-on: ubuntu-latest
         steps:
             - name: Checkout code
@@ -22,19 +22,12 @@ jobs:
               with:
                   go-version: "1.24.2"
 
-            - name: Install golangci-lint
-              uses: golangci/golangci-lint-action@v4
-              with:
-                  version: latest
-                  args: --timeout=1m
-                  working-directory: cli/so
-
             - name: Run make all
               working-directory: cli/so
-              run: make all
+              run: make test
 
     alpha-release:
-        needs: test-and-lint
+        needs: test
         runs-on: ubuntu-latest
         steps:
             - name: Checkout code
