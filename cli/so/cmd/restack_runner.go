@@ -66,10 +66,10 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 		// Only run if no rebase is currently in progress (i.e., we didn't exit due to conflict)
 		if !git.IsRebaseInProgress() {
 			if currentBranch != baseBranch {
-				r.logger.Debug("Checking out original branch", "name", baseBranch)
+				r.logger.Debug("Checking out original branch", "name", currentBranch)
 				errCheckout := git.CheckoutBranch(currentBranch)
 				if errCheckout != nil {
-					_, _ = fmt.Fprintf(r.stderr, ui.Colors.WarningStyle.Render("Warning: Failed to checkout original branch '%s': %v\\n"), baseBranch, errCheckout)
+					_, _ = fmt.Fprintf(r.stderr, ui.Colors.WarningStyle.Render("Warning: Failed to checkout original branch '%s': %v\\n"), currentBranch, errCheckout)
 				}
 			}
 		}
