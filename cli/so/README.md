@@ -8,11 +8,7 @@ This tool makes stacked development workflows smoother by adding metadata locall
 The easiest way to install ⁠so is through Homebrew:
 
 ```bash
-# Add the tap repository
-brew tap benekuehn/socle
-
-# Install the package
-brew install socle
+brew install benekuehn/tap/socle
 ```
 
 Verifying Installation
