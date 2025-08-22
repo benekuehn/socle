@@ -45,7 +45,7 @@ This creates pull requests for all branches in your stack that are ready for rev
 
 ## Learn More
 
-For detailed documentation and advanced usage, check out the [CLI documentation](./cli/README.md).
+For detailed documentation and advanced usage, check out the [CLI documentation](./cli/so/README.md).
 
 ## Why Socle?
 
