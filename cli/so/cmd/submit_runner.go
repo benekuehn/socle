@@ -122,6 +122,12 @@ func (r *submitCmdRunner) prepareSubmit(ctx context.Context) ([]string, map[stri
 	r.logger.Debug("Using full stack from GetStackInfo...")
 	fullStack := stackInfo.FullStack
 	allParents := stackInfo.ParentMap
+	
+	// Handle case where we're on a base branch with multiple stacks
+	if fullStack == nil {
+		return nil, nil, fmt.Errorf("cannot submit from base branch '%s' with multiple stacks. Please navigate to a specific stack first using 'so up', 'so bottom', or 'so stacks' to see available options", stackInfo.CurrentBranch)
+	}
+	
 	r.logger.Debug("Full ordered stack identified for processing", "fullStack", fullStack)
 
 	if len(fullStack) <= 1 {
