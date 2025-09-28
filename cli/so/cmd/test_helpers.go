@@ -90,6 +90,47 @@ func trackBranch(t *testing.T, repoPath, branch, parent, base string) {
 	testutils.RunCommand(t, repoPath, "git", "config", "--local", baseKey, base)
 }
 
+// setupRepoWithMultipleStacks creates a git repository with multiple stacks from main
+// Creates two stacks: main->feature-a->feature-b and main->feature-x->feature-y
+func setupRepoWithMultipleStacks(t *testing.T) (repoPath string, cleanup func()) {
+	t.Helper()
+	repoPath, cleanup = testutils.SetupGitRepo(t) // Starts with main commit
+
+	// Create first stack: main -> feature-a -> feature-b
+	testutils.RunCommand(t, repoPath, "git", "checkout", "main")
+	testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature-a")
+	writeFile(t, repoPath, "feature-a.txt", "feature-a content")
+	testutils.RunCommand(t, repoPath, "git", "add", ".")
+	testutils.RunCommand(t, repoPath, "git", "commit", "-m", "feat: commit on feature-a")
+	err := runSoCommand(t, "track", "--test-parent=main")
+	require.NoError(t, err, "Setup: failed to track feature-a")
+
+	testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature-b")
+	writeFile(t, repoPath, "feature-b.txt", "feature-b content")
+	testutils.RunCommand(t, repoPath, "git", "add", ".")
+	testutils.RunCommand(t, repoPath, "git", "commit", "-m", "feat: commit on feature-b")
+	err = runSoCommand(t, "track", "--test-parent=feature-a")
+	require.NoError(t, err, "Setup: failed to track feature-b")
+
+	// Create second stack: main -> feature-x -> feature-y
+	testutils.RunCommand(t, repoPath, "git", "checkout", "main")
+	testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature-x")
+	writeFile(t, repoPath, "feature-x.txt", "feature-x content")
+	testutils.RunCommand(t, repoPath, "git", "add", ".")
+	testutils.RunCommand(t, repoPath, "git", "commit", "-m", "feat: commit on feature-x")
+	err = runSoCommand(t, "track", "--test-parent=main")
+	require.NoError(t, err, "Setup: failed to track feature-x")
+
+	testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature-y")
+	writeFile(t, repoPath, "feature-y.txt", "feature-y content")
+	testutils.RunCommand(t, repoPath, "git", "add", ".")
+	testutils.RunCommand(t, repoPath, "git", "commit", "-m", "feat: commit on feature-y")
+	err = runSoCommand(t, "track", "--test-parent=feature-x")
+	require.NoError(t, err, "Setup: failed to track feature-y")
+
+	return repoPath, cleanup
+}
+
 // runSoCommand executes a so command
 func runSoCommand(t *testing.T, args ...string) error {
 	t.Helper()

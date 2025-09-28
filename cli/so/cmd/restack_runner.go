@@ -54,6 +54,11 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 	baseBranch := stackInfo.BaseBranch
 	currentBranch := stackInfo.CurrentBranch
 
+	// Handle case where we're on a base branch with multiple stacks
+	if stack == nil {
+		return fmt.Errorf("cannot restack from base branch '%s' with multiple stacks. Please navigate to a specific stack first using 'so up', 'so bottom', or 'so stacks' to see available options", currentBranch)
+	}
+
 	r.logger.Debug("Identified stack for restacking", "stack", stack, "base", baseBranch)
 
 	if len(stack) <= 1 {

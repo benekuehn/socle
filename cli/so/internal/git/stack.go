@@ -107,7 +107,22 @@ func GetStackInfo() (*StackInfo, error) {
 		}
 
 		if len(children) > 1 {
-			slog.Warn("Multiple tracked children found, using the first one for stack order", "parent", current, "children", children)
+			if knownBases[current] {
+				// Base branch with multiple stacks - cannot determine single linear stack
+				// Return special case that navigation commands will need to handle
+				slog.Debug("Base branch with multiple stacks detected", "base", current, "children", children)
+				return &StackInfo{
+					CurrentBranch: currentBranch,
+					BaseBranch:    baseBranch,
+					CurrentStack:  currentStack,
+					FullStack:     nil, // Signal that multiple stacks exist
+					ParentMap:     parentMap,
+					ChildMap:      childMap,
+				}, nil
+			} else {
+				// Non-base branch with multiple children - this violates linear stack assumption
+				return nil, fmt.Errorf("non-base branch '%s' has multiple children %v, which violates linear stack structure. Only base branches (%v) can have multiple children", current, children, []string{"main", "master", "develop"})
+			}
 		}
 		nextChild := children[0]
 
@@ -134,4 +149,73 @@ func GetStackInfo() (*StackInfo, error) {
 		ParentMap:     parentMap,
 		ChildMap:      childMap,
 	}, nil
+}
+
+// GetAvailableStacksFromBase returns all available stacks that start from the given base branch
+func GetAvailableStacksFromBase(baseBranch string) ([][]string, error) {
+	parentMap, err := GetAllSocleParents()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read tracking relationships: %w", err)
+	}
+
+	childMap := BuildChildMap(parentMap)
+	children, found := childMap[baseBranch]
+	if !found || len(children) == 0 {
+		return nil, fmt.Errorf("no stacks found starting from base branch '%s'", baseBranch)
+	}
+
+	var stacks [][]string
+	for _, child := range children {
+		stack, err := buildLinearStackFromChild(baseBranch, child, childMap, make(map[string]bool))
+		if err != nil {
+			slog.Warn("Failed to build stack from child", "base", baseBranch, "child", child, "error", err)
+			continue
+		}
+		stacks = append(stacks, stack)
+	}
+
+	return stacks, nil
+}
+
+// buildLinearStackFromChild builds a complete linear stack starting from base->child
+func buildLinearStackFromChild(baseBranch, child string, childMap map[string][]string, visited map[string]bool) ([]string, error) {
+	if visited[child] {
+		return nil, fmt.Errorf("cycle detected in stack near branch '%s'", child)
+	}
+
+	stack := []string{baseBranch, child}
+	current := child
+	visited[child] = true
+
+	for {
+		children, found := childMap[current]
+		if !found || len(children) == 0 {
+			break // End of stack
+		}
+
+		if len(children) > 1 {
+			return nil, fmt.Errorf("non-base branch '%s' has multiple children %v, violating linear stack structure", current, children)
+		}
+
+		nextChild := children[0]
+		if visited[nextChild] {
+			return nil, fmt.Errorf("cycle detected in stack near branch '%s'", nextChild)
+		}
+
+		stack = append(stack, nextChild)
+		visited[nextChild] = true
+		current = nextChild
+
+		if len(stack) > 100 { // Safety break
+			return nil, fmt.Errorf("stack reconstruction exceeded 100 branches")
+		}
+	}
+
+	return stack, nil
+}
+
+// IsKnownBaseBranch checks if a branch is a known base branch
+func IsKnownBaseBranch(branchName string) bool {
+	knownBases := map[string]bool{"main": true, "master": true, "develop": true}
+	return knownBases[branchName]
 }

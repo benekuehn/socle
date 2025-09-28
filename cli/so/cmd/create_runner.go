@@ -68,6 +68,20 @@ func (r *createCmdRunner) run() error {
 		return fmt.Errorf("internal error: could not determine base branch for parent '%s'", parentBranch)
 	}
 
+	// 2.5. Validate linear stack constraint: non-base branches can only have one child
+	if !isParentBase {
+		// Check if parent already has children
+		parentMap, err := git.GetAllSocleParents()
+		if err != nil {
+			return fmt.Errorf("failed to check existing branch relationships: %w", err)
+		}
+		childMap := git.BuildChildMap(parentMap)
+		
+		if existingChildren, hasChildren := childMap[parentBranch]; hasChildren && len(existingChildren) > 0 {
+			return fmt.Errorf("non-base branch '%s' already has child branch(es): %v. Only base branches can have multiple children. Use 'so up' to navigate to the existing child or create a new stack from the base branch", parentBranch, existingChildren)
+		}
+	}
+
 	// 3. Determine new branch name
 	newBranchName := ""
 	if r.testBranchName != "" {

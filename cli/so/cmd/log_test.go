@@ -4,6 +4,7 @@ package cmd
 import (
 	"context"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/benekuehn/socle/cli/so/internal/gh"
@@ -174,5 +175,45 @@ func TestLogCommand(t *testing.T) {
 		strippedContent := stripAnsi(stdout)
 		assert.Contains(t, strippedContent, "feature-a")
 		assert.Contains(t, strippedContent, "pr open")
+	})
+
+	t.Run("Log on base branch with multiple stacks", func(t *testing.T) {
+		repoPath, cleanup := setupRepoWithMultipleStacks(t)
+		defer cleanup()
+		testutils.RunCommand(t, repoPath, "git", "remote", "add", "origin", "https://github.com/example/test-repo.git")
+		
+		// Checkout to base branch
+		testutils.RunCommand(t, repoPath, "git", "checkout", "main")
+
+		stdout, _, err := runSoCommandWithOutput(t, "log")
+
+		require.NoError(t, err)
+		actualContent := stripAnsi(stdout)
+		
+		// Should show header with stack count
+		assert.Contains(t, actualContent, "2 stacks from base 'main':")
+		
+		// Should show both stacks with detailed info
+		assert.Contains(t, actualContent, "● ○ feature-b (up-to-date, no PR submitted)")
+		assert.Contains(t, actualContent, "● ○ feature-a (up-to-date, no PR submitted)")
+		assert.Contains(t, actualContent, "● ○ feature-y (up-to-date, no PR submitted)")
+		assert.Contains(t, actualContent, "● ○ feature-x (up-to-date, no PR submitted)")
+		
+		// Should show base branch for each stack
+		assert.Contains(t, actualContent, "main (base)")
+		
+		// Should have spacing between stacks
+		lines := strings.Split(actualContent, "\n")
+		hasBlankLineBetweenStacks := false
+		for i, line := range lines {
+			if strings.TrimSpace(line) == "main (base)" && i+1 < len(lines) {
+				nextLine := lines[i+1]
+				if strings.TrimSpace(nextLine) == "" {
+					hasBlankLineBetweenStacks = true
+					break
+				}
+			}
+		}
+		assert.True(t, hasBlankLineBetweenStacks, "Should have blank line between stacks")
 	})
 }
