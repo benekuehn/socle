@@ -5,7 +5,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/benekuehn/socle/cli/so/internal/cmdutils"
@@ -28,99 +27,47 @@ func (r *upCmdRunner) run() error {
 	}
 	r.logger.Debug("Retrieved stack info", "currentBranch", stackInfo.CurrentBranch, "fullStack", stackInfo.FullStack)
 
-	// Handle case where we're on a base branch with multiple stacks
-	if stackInfo.FullStack == nil {
-		r.logger.Debug("Multiple stacks detected from base branch, prompting for selection")
-		return r.handleMultipleStackSelection(stackInfo)
-	}
-
-	currentIndex := cmdutils.FindIndexInStack(stackInfo.CurrentBranch, stackInfo.FullStack)
-	if currentIndex == -1 {
-		return fmt.Errorf("internal error: current branch '%s' not found in its full stack: %v", stackInfo.CurrentBranch, stackInfo.FullStack)
-	}
-	r.logger.Debug("Current branch index in full stack", "index", currentIndex)
-
-	if currentIndex == len(stackInfo.FullStack)-1 {
-		_, _ = fmt.Fprintf(r.stdout, "Already on the top branch: '%s'.\n", stackInfo.CurrentBranch)
-		return nil
-	}
-
-	childBranch := stackInfo.FullStack[currentIndex+1]
-	r.logger.Debug("Checking out child branch", "child", childBranch)
-
-	if err := git.CheckoutBranch(childBranch); err != nil {
-		if strings.Contains(err.Error(), "Please commit your changes or stash them") {
-			return fmt.Errorf("cannot checkout child branch '%s': uncommitted changes detected in '%s'. Please commit or stash them first", childBranch, stackInfo.CurrentBranch)
+	// CASE 1: On base branch with multiple stacks
+	if stackInfo.FullStack == nil && stackInfo.CurrentBranch == stackInfo.BaseBranch {
+		if target, handled, selErr := cmdutils.ResolveTestStackSelection(stackInfo.CurrentBranch, cmdutils.PurposeUp, testSelectStackIndex, testSelectStackChild); handled {
+			if selErr != nil { return selErr }
+			if target == "" { return nil }
+			return checkoutBranch(target, stackInfo.CurrentBranch)
 		}
-		return fmt.Errorf("failed to checkout child branch '%s': %w", childBranch, err)
+		branch, _, errSel := r.promptSelectStack(stackInfo.CurrentBranch, cmdutils.PurposeUp)
+		if errSel != nil { return errSel }
+		if branch == "" { return nil }
+		return checkoutBranch(branch, stackInfo.CurrentBranch)
 	}
-	return nil
+
+	// CASE 2: Inside lineage (multi-stack env) with FullStack nil
+	if stackInfo.FullStack == nil {
+		branch, msg, navErr := cmdutils.ComputeLinearTarget(stackInfo.CurrentBranch, stackInfo.CurrentStack, cmdutils.PurposeUp)
+		if navErr != nil { return navErr }
+		if branch == "" { if msg != "" { _, _ = fmt.Fprintf(r.stdout, "%s\n", msg) }; return nil }
+		return checkoutBranch(branch, stackInfo.CurrentBranch)
+	}
+
+	// CASE 3: Standard linear stack
+	branch, msg, navErr := cmdutils.ComputeLinearTarget(stackInfo.CurrentBranch, stackInfo.FullStack, cmdutils.PurposeUp)
+	if navErr != nil { return navErr }
+	if branch == "" { if msg != "" { _, _ = fmt.Fprintf(r.stdout, "%s\n", msg) }; return nil }
+	return checkoutBranch(branch, stackInfo.CurrentBranch)
 }
 
-func (r *upCmdRunner) handleMultipleStackSelection(stackInfo *git.StackInfo) error {
-	// Get available stacks from the current base
-	availableStacks, err := git.GetAvailableStacksFromBase(stackInfo.CurrentBranch)
-	if err != nil {
-		return fmt.Errorf("failed to get available stacks from base '%s': %w", stackInfo.CurrentBranch, err)
-	}
-
-	if len(availableStacks) == 0 {
-		_, _ = fmt.Fprintf(r.stdout, "No stacks found starting from base branch '%s'.\n", stackInfo.CurrentBranch)
-		return nil
-	}
-
-	// Build options for selection
-	options := make([]string, len(availableStacks))
-	for i, stack := range availableStacks {
-		// Show first non-base branch in each stack as the option
-		if len(stack) > 1 {
-			options[i] = fmt.Sprintf("%s (stack with %d branches)", stack[1], len(stack)-1)
-		} else {
-			options[i] = fmt.Sprintf("Stack %d", i+1)
-		}
-	}
-
-	// Prompt user for selection
+// promptSelectStack provides interactive stack selection using shared utilities.
+func (r *upCmdRunner) promptSelectStack(baseBranch string, purpose cmdutils.NavigationPurpose) (string, bool, error) {
+	options, stacks, err := cmdutils.BuildStackSelectionOptions(baseBranch, purpose)
+	if err != nil { return "", true, err }
+	if len(stacks) == 0 { _, _ = fmt.Fprintf(r.stdout, "No stacks found starting from base branch '%s'.\n", baseBranch); return "", true, nil }
 	var selectedOption string
-	prompt := &survey.Select{
-		Message: fmt.Sprintf("Multiple stacks available from '%s'. Select a stack:", stackInfo.CurrentBranch),
-		Options: options,
-	}
-	
+	prompt := &survey.Select{Message: fmt.Sprintf("Multiple stacks available from '%s'. Select a stack:", baseBranch), Options: options}
 	err = survey.AskOne(prompt, &selectedOption, survey.WithStdio(r.stdin.(*os.File), r.stderr.(*os.File), r.stderr.(*os.File)))
-	if err != nil {
-		return ui.HandleSurveyInterrupt(err, "Navigation cancelled.")
-	}
-
-	// Find selected stack index
-	selectedIndex := -1
-	for i, option := range options {
-		if option == selectedOption {
-			selectedIndex = i
-			break
-		}
-	}
-
-	if selectedIndex == -1 {
-		return fmt.Errorf("internal error: could not find selected option")
-	}
-
-	// Navigate to first branch in selected stack (skip base)
-	selectedStack := availableStacks[selectedIndex]
-	if len(selectedStack) <= 1 {
-		_, _ = fmt.Fprintf(r.stdout, "Selected stack has no branches beyond the base.\n")
-		return nil
-	}
-
-	targetBranch := selectedStack[1] // First branch after base
-	r.logger.Debug("Checking out selected stack branch", "branch", targetBranch, "stack", selectedStack)
-
-	if err := git.CheckoutBranch(targetBranch); err != nil {
-		if strings.Contains(err.Error(), "Please commit your changes or stash them") {
-			return fmt.Errorf("cannot checkout branch '%s': uncommitted changes detected in '%s'. Please commit or stash them first", targetBranch, stackInfo.CurrentBranch)
-		}
-		return fmt.Errorf("failed to checkout branch '%s': %w", targetBranch, err)
-	}
-
-	return nil
+	if err != nil { return "", true, ui.HandleSurveyInterrupt(err, "Navigation cancelled.") }
+	idx := -1
+	for i, opt := range options { if opt == selectedOption { idx = i; break } }
+	if idx == -1 { return "", true, fmt.Errorf("internal error: could not find selected option") }
+	branch, pickErr := cmdutils.PickBranchFromStack(stacks[idx], purpose)
+	if pickErr != nil { _, _ = fmt.Fprintln(r.stdout, pickErr.Error()); return "", true, nil }
+	return branch, true, nil
 }
