@@ -1,32 +1,32 @@
 {
-  "name": "my-app",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
-  },
-  "dependencies": {
-    "@vercel/analytics": "^1.5.0",
-    "framer-motion": "^12.10.0",
-    "geist": "^1.4.2",
-    "lucide-react": "^0.507.0",
-    "next": "15.3.3",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
-  },
-  "devDependencies": {
-    "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "15.3.2",
-    "schema-dts": "^1.1.5",
-    "tailwindcss": "^4",
-    "typescript": "^5"
-  }
+    "name": "socle-website",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "next dev --turbopack",
+        "build": "next build",
+        "start": "next start",
+        "lint": "next lint"
+    },
+    "dependencies": {
+        "@vercel/analytics": "1.5.0",
+        "framer-motion": "12.23.24",
+        "geist": "1.5.1",
+        "lucide-react": "0.545.0",
+        "next": "15.5.4",
+        "react": "19.2.0",
+        "react-dom": "19.2.0"
+    },
+    "devDependencies": {
+        "@eslint/eslintrc": "3.3.1",
+        "@tailwindcss/postcss": "4.1.14",
+        "@types/node": "20",
+        "@types/react": "19.2.2",
+        "@types/react-dom": "19.2.0",
+        "eslint": "9.37",
+        "eslint-config-next": "15.5.4",
+        "schema-dts": "1.1.5",
+        "tailwindcss": "4.1.14",
+        "typescript": "5.9.3"
+    }
 }
