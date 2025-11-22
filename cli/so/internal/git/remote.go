@@ -220,19 +220,12 @@ func SwitchBranch(branch string) error {
 	return cmd.Run()
 }
 
-// UpdateBranchParent updates both the tracking and parent configuration for a branch
+// UpdateBranchParent refreshes the Socle parent metadata for a branch without
+// touching Git's upstream configuration (to preserve remote tracking).
 func UpdateBranchParent(branchName, parentName string) error {
-	// Update tracking information
-	if err := SetBranchParent(branchName, parentName); err != nil {
-		return fmt.Errorf("failed to set tracking for branch '%s' to '%s': %w", branchName, parentName, err)
-	}
-
-	// Update parent configuration
 	parentConfigKey := fmt.Sprintf("branch.%s.socle-parent", branchName)
-	cmd := exec.Command("git", "config", parentConfigKey, parentName)
+	cmd := exec.Command("git", "config", "--local", parentConfigKey, parentName)
 	if err := cmd.Run(); err != nil {
-		// If setting parent fails, try to restore tracking
-		_ = SetBranchParent(branchName, parentName)
 		return fmt.Errorf("failed to set parent configuration for branch '%s' to '%s': %w", branchName, parentName, err)
 	}
 
