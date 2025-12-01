@@ -86,6 +86,21 @@ func (c *MockClient) UpdatePullRequestBase(number int, newBase string) (*github.
 	return args.Get(0).(*github.PullRequest), args.Error(1)
 }
 
+// FindPullRequestByHead simulates discovering a PR by its head branch
+func (c *MockClient) FindPullRequestByHead(headBranch string) (*github.PullRequest, error) {
+	if c.CounterChan != nil {
+		c.CounterChan <- "FindPullRequestByHead"
+	}
+	Counter.Increment("FindPullRequestByHead")
+
+	args := c.Called(headBranch)
+	var pr *github.PullRequest
+	if v := args.Get(0); v != nil {
+		pr = v.(*github.PullRequest)
+	}
+	return pr, args.Error(1)
+}
+
 // CreateComment simulates creating a comment
 func (c *MockClient) CreateComment(issueNumber int, body string) (*github.IssueComment, error) {
 	// Count the operation

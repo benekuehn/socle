@@ -43,6 +43,7 @@ type ClientInterface interface {
 	GetPullRequest(number int) (*github.PullRequest, error)
 	CreatePullRequest(head, base, title, body string, isDraft bool) (*github.PullRequest, error)
 	UpdatePullRequestBase(number int, newBase string) (*github.PullRequest, error)
+	FindPullRequestByHead(headBranch string) (*github.PullRequest, error)
 	CreateComment(issueNumber int, body string) (*github.IssueComment, error)
 	UpdateComment(commentID int64, body string) (*github.IssueComment, error)
 	FindCommentWithMarker(issueNumber int, marker string) (commentID int64, err error)
@@ -241,6 +242,28 @@ func (c *Client) UpdatePullRequestBase(number int, newBase string) (*github.Pull
 		return nil, fmt.Errorf("failed to update base for pull request #%d to '%s': %w", number, newBase, err)
 	}
 	return pr, nil
+}
+
+// FindPullRequestByHead finds the first open pull request whose head matches the provided branch.
+func (c *Client) FindPullRequestByHead(headBranch string) (*github.PullRequest, error) {
+	listOpts := &github.PullRequestListOptions{
+		State: "open",
+		Head:  fmt.Sprintf("%s:%s", c.Owner, headBranch),
+		ListOptions: github.ListOptions{
+			PerPage: 10,
+		},
+	}
+
+	prs, _, err := c.gh.PullRequests.List(c.Ctx, c.Owner, c.Repo, listOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pull requests for branch '%s': %w", headBranch, err)
+	}
+
+	if len(prs) == 0 {
+		return nil, nil
+	}
+
+	return prs[0], nil
 }
 
 // CreateComment adds a new comment to an issue/PR.

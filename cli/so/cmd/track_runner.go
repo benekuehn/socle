@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -8,16 +9,20 @@ import (
 	"os"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/benekuehn/socle/cli/so/internal/gh"
 	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/ui"
 	// Assuming HandleSurveyInterrupt is there or moved to ui
 )
 
 type trackCmdRunner struct {
+	ctx    context.Context
 	logger *slog.Logger
 	stdout io.Writer
 	stderr io.Writer
 	stdin  io.Reader
+
+	discoverRemote bool
 
 	// Test flags
 	testSelectedParent string
@@ -66,8 +71,42 @@ func (r *trackCmdRunner) run() error {
 		return fmt.Errorf("no other local branches found to select as a parent")
 	}
 
+	var discovery *remoteDiscoveryResult
+	if r.discoverRemote {
+		var err error
+		discovery, err = r.discoverRemoteInfo(currentBranch)
+		if err != nil {
+			_, _ = fmt.Fprintln(r.stderr, ui.Colors.WarningStyle.Render(fmt.Sprintf("Remote discovery skipped: %v", err)))
+		} else if discovery != nil {
+			r.logger.Debug("Remote discovery successful", "remoteName", discovery.remoteName)
+			r.emitDiscoverySummary(currentBranch, discovery)
+			if discovery.prBase != "" && discovery.prBase != currentBranch {
+				found := false
+				for _, candidate := range potentialParents {
+					if candidate == discovery.prBase {
+						found = true
+						break
+					}
+				}
+				if !found && knownBases[discovery.prBase] {
+					potentialParents = append(potentialParents, discovery.prBase)
+				}
+			}
+		}
+	}
+
 	// 4. Prompt user to select parent
 	selectedParent := ""
+	var defaultParent string
+	if discovery != nil && discovery.prBase != "" && discovery.prBase != currentBranch {
+		for _, candidate := range potentialParents {
+			if candidate == discovery.prBase {
+				defaultParent = discovery.prBase
+				break
+			}
+		}
+	}
+
 	if r.testSelectedParent != "" {
 		r.logger.Debug("Using parent branch from test flag", "testParent", r.testSelectedParent)
 		found := false
@@ -86,6 +125,9 @@ func (r *trackCmdRunner) run() error {
 		surveyOpts := survey.WithStdio(r.stdin.(*os.File), r.stderr.(*os.File), r.stderr.(*os.File))
 		r.logger.Debug("Prompting user for parent branch")
 		prompt := &survey.Select{Message: fmt.Sprintf("Select the parent branch for '%s':", currentBranch), Options: potentialParents}
+		if defaultParent != "" {
+			prompt.Default = defaultParent
+		}
 		err := survey.AskOne(prompt, &selectedParent, surveyOpts)
 		if err != nil {
 			// Use ui.HandleSurveyInterrupt which should be in internal/ui
@@ -140,6 +182,109 @@ func (r *trackCmdRunner) run() error {
 		return fmt.Errorf("failed to set socle-base config: %w", err)
 	}
 
+	if discovery != nil && discovery.prNumber > 0 {
+		if discovery.prBase != "" && discovery.prBase != selectedParent {
+			_, _ = fmt.Fprintln(r.stderr, ui.Colors.WarningStyle.Render(fmt.Sprintf(
+				"Warning: discovered PR #%d targets '%s', but you selected parent '%s'.",
+				discovery.prNumber, discovery.prBase, selectedParent,
+			)))
+		}
+		if errUnset := git.UnsetStoredPRNumber(currentBranch); errUnset != nil {
+			r.logger.Debug("Failed to clear existing stored PR number before updating", "branch", currentBranch, "error", errUnset)
+		}
+		if errSet := git.SetStoredPRNumber(currentBranch, discovery.prNumber); errSet != nil {
+			_, _ = fmt.Fprintln(r.stderr, ui.Colors.WarningStyle.Render(fmt.Sprintf(
+				"Warning: failed to store discovered PR #%d locally: %v", discovery.prNumber, errSet,
+			)))
+		} else {
+			_, _ = fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render(fmt.Sprintf(
+				"Stored discovered pull request #%d for '%s'.", discovery.prNumber, currentBranch,
+			)))
+		}
+	} else if r.discoverRemote && discovery != nil {
+		_, _ = fmt.Fprintln(r.stdout, ui.Colors.InfoStyle.Render("No open pull request discovered to store."))
+	}
+
 	_, _ = fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("Branch tracking information saved successfully."))
 	return nil
+}
+
+type remoteDiscoveryResult struct {
+	remoteName string
+	remoteURL  string
+	owner      string
+	repo       string
+	prNumber   int
+	prBase     string
+}
+
+func (r *trackCmdRunner) discoverRemoteInfo(branch string) (*remoteDiscoveryResult, error) {
+	remoteName := "origin"
+	remoteKey := fmt.Sprintf("branch.%s.remote", branch)
+	if remoteConfig, err := git.GetGitConfig(remoteKey); err == nil && remoteConfig != "" {
+		remoteName = remoteConfig
+	} else if err != nil && !errors.Is(err, git.ErrConfigNotFound) {
+		return nil, fmt.Errorf("failed to read remote config for '%s': %w", branch, err)
+	}
+
+	remoteURL, err := git.GetRemoteURL(remoteName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve remote '%s' for branch '%s': %w", remoteName, branch, err)
+	}
+
+	owner, repo, err := git.ParseOwnerAndRepo(remoteURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse owner/repo from remote URL '%s': %w", remoteURL, err)
+	}
+
+	ctx := r.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	ghClient, err := gh.CreateClient(ctx, owner, repo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GitHub client for %s/%s: %w", owner, repo, err)
+	}
+
+	pr, err := ghClient.FindPullRequestByHead(branch)
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover pull request for branch '%s': %w", branch, err)
+	}
+
+	result := &remoteDiscoveryResult{
+		remoteName: remoteName,
+		remoteURL:  remoteURL,
+		owner:      owner,
+		repo:       repo,
+	}
+	if pr != nil {
+		result.prNumber = pr.GetNumber()
+		if base := pr.GetBase(); base != nil {
+			result.prBase = base.GetRef()
+		}
+	}
+
+	return result, nil
+}
+
+func (r *trackCmdRunner) emitDiscoverySummary(branch string, discovery *remoteDiscoveryResult) {
+	if discovery == nil {
+		return
+	}
+
+	_, _ = fmt.Fprintln(r.stdout, ui.Colors.InfoStyle.Render(fmt.Sprintf(
+		"Discovered remote '%s' for branch '%s' (%s/%s).",
+		discovery.remoteName, branch, discovery.owner, discovery.repo,
+	)))
+
+	if discovery.prNumber > 0 {
+		baseInfo := discovery.prBase
+		if baseInfo == "" {
+			baseInfo = "unknown base"
+		}
+		_, _ = fmt.Fprintln(r.stdout, ui.Colors.InfoStyle.Render(fmt.Sprintf(
+			"Found open pull request #%d targeting '%s'.", discovery.prNumber, baseInfo,
+		)))
+	}
 }

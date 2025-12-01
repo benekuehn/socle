@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"context"
 	"strings"
 	"testing"
 
+	"github.com/benekuehn/socle/cli/so/internal/gh"
 	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/testutils"
+	"github.com/google/go-github/v71/github"
 )
 
 func TestTrackCommand(t *testing.T) {
@@ -85,5 +88,51 @@ func TestTrackCommand(t *testing.T) {
 		if !strings.Contains(err.Error(), expectedErrorMsg) {
 			t.Errorf("Expected error message containing '%s', but got: %v", expectedErrorMsg, err)
 		}
+	})
+
+	t.Run("Discover remote pull request metadata", func(t *testing.T) {
+		repoPath, cleanup := testutils.SetupGitRepo(t)
+		defer cleanup()
+
+		testutils.RunCommand(t, repoPath, "git", "remote", "add", "origin", "git@github.com:example/repo.git")
+		testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature/a")
+		testutils.RunCommand(t, repoPath, "git", "config", "--local", "branch.feature/a.remote", "origin")
+
+		mockClient := gh.NewMockClient()
+		prNumber := 123
+		prBase := "main"
+		pr := &github.PullRequest{
+			Number: github.Ptr(prNumber),
+			Base: &github.PullRequestBranch{
+				Ref: github.Ptr(prBase),
+			},
+		}
+		mockClient.On("FindPullRequestByHead", "feature/a").Return(pr, nil)
+
+		originalCreateClient := gh.CreateClient
+		gh.CreateClient = func(ctx context.Context, owner, repo string) (gh.ClientInterface, error) {
+			if owner != "example" || repo != "repo" {
+				t.Fatalf("unexpected owner/repo: %s/%s", owner, repo)
+			}
+			return mockClient, nil
+		}
+		t.Cleanup(func() {
+			gh.CreateClient = originalCreateClient
+		})
+
+		err := runSoCommand(t, "track", "--discover", "--test-parent=main")
+		if err != nil {
+			t.Fatalf("so track with discover failed unexpectedly: %v", err)
+		}
+
+		storedPR, err := git.GetGitConfig("branch.feature/a.socle-pr-number")
+		if err != nil {
+			t.Fatalf("failed to read stored PR number: %v", err)
+		}
+		if storedPR != "123" {
+			t.Errorf("expected stored PR number '123', got '%s'", storedPR)
+		}
+
+		mockClient.AssertExpectations(t)
 	})
 }

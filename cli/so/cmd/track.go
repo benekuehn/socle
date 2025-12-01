@@ -16,12 +16,19 @@ within a stack. This allows 'socle show' to display the specific stack you are o
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger := slog.Default()
 
+		discoverRemote, err := cmd.Flags().GetBool("discover")
+		if err != nil {
+			return err
+		}
+
 		runner := &trackCmdRunner{
+			ctx:    cmd.Context(),
 			logger: logger,
 			stdout: cmd.OutOrStdout(),
 			stderr: cmd.ErrOrStderr(),
 			stdin:  os.Stdin,
 
+			discoverRemote:     discoverRemote,
 			testSelectedParent: cmd.Flag("test-parent").Value.String(),
 			testAssumeBase:     cmd.Flag("test-base").Value.String(),
 		}
@@ -36,6 +43,7 @@ func init() {
 	AddCommand(trackCmd)
 	trackCmd.Flags().String("test-parent", "", "Parent branch to select (for testing only)")
 	trackCmd.Flags().String("test-base", "", "Base branch to assume if parent is untracked (for testing only)")
+	trackCmd.Flags().BoolP("discover", "d", false, "Discover remote metadata (e.g. existing pull requests) while tracking")
 	_ = trackCmd.Flags().MarkHidden("test-parent")
 	_ = trackCmd.Flags().MarkHidden("test-base")
 }
