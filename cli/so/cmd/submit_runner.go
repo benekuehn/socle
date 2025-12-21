@@ -310,7 +310,7 @@ func renderStackCommentBody(stack []string, currentBranch string, stackCommentMa
 		}
 	}
 
-	sb.WriteString("\n" + stackCommentMarker + "\n")
+	sb.WriteString("\nStacked PRs created with [Socle](https://github.com/benekuehn/socle). " + stackCommentMarker + "\n")
 
 	return sb.String()
 }

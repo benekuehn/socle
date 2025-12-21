@@ -99,7 +99,7 @@ func TestSubmitCommand(t *testing.T) {
 		).Once()
 		// Assume base doesn't need update: UpdatePullRequestBase NOT called
 		// Expect comment update for feature-a's PR (comment ID 5001)
-		expectedBody101 := "**Stack Overview:**\n\n* **#102** \n* **#101**  👈\n* `main` (base)\n\n<!-- socle-stack-overview -->\n"
+		expectedBody101 := "**Stack Overview:**\n\n* **#102** \n* **#101**  👈\n* `main` (base)\n\nStacked PRs created with [Socle](https://github.com/benekuehn/socle). <!-- socle-stack-overview -->\n"
 		mockClient.On("UpdateComment", int64(5001), mock.MatchedBy(func(body string) bool {
 			return body == expectedBody101
 		})).Return(
@@ -115,7 +115,7 @@ func TestSubmitCommand(t *testing.T) {
 		).Once()
 		// Expect comment creation for feature-b's PR
 		mockClient.On("FindCommentWithMarker", 102, mock.AnythingOfType("string")).Return(int64(0), nil).Once()
-		expectedBody102 := "**Stack Overview:**\n\n* **#102**  👈\n* **#101** \n* `main` (base)\n\n<!-- socle-stack-overview -->\n"
+		expectedBody102 := "**Stack Overview:**\n\n* **#102**  👈\n* **#101** \n* `main` (base)\n\nStacked PRs created with [Socle](https://github.com/benekuehn/socle). <!-- socle-stack-overview -->\n"
 		mockClient.On("CreateComment", 102, mock.MatchedBy(func(body string) bool {
 			return body == expectedBody102
 		})).Return(
