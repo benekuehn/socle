@@ -36,7 +36,7 @@ Process:
 			// Populate config from flags
 			doRestack: !cmd.Flag("no-restack").Changed,
 			noFetch:   noFetch,
-			noSurvey:   noSurvey,
+			noSurvey:  noSurvey,
 		}
 
 		return runner.run(cmd)

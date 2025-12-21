@@ -11,8 +11,10 @@ import (
 
 // Multi-stack navigation scenarios:
 // Repository with two stacks from main:
-//   Stack 0: main -> feature-a -> feature-b
-//   Stack 1: main -> feature-x -> feature-y
+//
+//	Stack 0: main -> feature-a -> feature-b
+//	Stack 1: main -> feature-x -> feature-y
+//
 // When on a non-base branch (e.g., feature-a, feature-b, feature-x, feature-y), commands should
 // navigate linearly without emitting the prompt string "Multiple stacks available".
 // When on base branch (main) we exercise hidden test flag to auto-select a stack instead of interactive prompt.

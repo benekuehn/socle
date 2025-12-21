@@ -117,13 +117,13 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 		_, _ = fmt.Fprintf(r.stdout, "Error: Could not get stack information.\n")
 		return nil
 	}
-	
+
 	// If FullStack is nil, it means there are multiple stacks from the base
 	// But only show multiple stacks if we're actually ON the base branch
 	if stackInfo.FullStack == nil && currentBranch == stackInfo.BaseBranch {
 		return r.displayMultipleStacks(ctx, stackInfo.BaseBranch, currentBranch)
 	}
-	
+
 	// Determine which stack to use for display
 	var stackToDisplay []string
 	if stackInfo.FullStack != nil {
@@ -132,7 +132,7 @@ func (r *logCmdRunner) run(ctx context.Context) error {
 		// FullStack is nil but we're not on base - use CurrentStack instead
 		stackToDisplay = stackInfo.CurrentStack
 	}
-	
+
 	if len(stackToDisplay) <= 1 {
 		_, _ = fmt.Fprintf(r.stdout, "Currently on the base branch '%s'.\n", currentBranch)
 		return nil
@@ -631,25 +631,25 @@ func (r *logCmdRunner) displaySingleStack(stack []string, currentBranch string) 
 	// Skip the base branch (index 0) and show stack branches in reverse order
 	for i := len(stack) - 1; i >= 1; i-- {
 		branch := stack[i]
-		
+
 		// Use the same dot pattern as so log
-		branchDot := "○"  // Empty circle for branch status (could be enhanced later with actual status)
-		statusDot := "●"  // Filled circle for git status 
-		
+		branchDot := "○" // Empty circle for branch status (could be enhanced later with actual status)
+		statusDot := "●" // Filled circle for git status
+
 		// Check if this is the current branch and style accordingly
 		isCurrentBranch := branch == currentBranch
 		var branchText string
-		
+
 		if isCurrentBranch {
 			// Highlight current branch similar to log output
 			branchText = ui.Colors.InfoStyle.Render(fmt.Sprintf("%s %s %s", statusDot, branchDot, branch))
 		} else {
 			branchText = fmt.Sprintf("%s %s %s", statusDot, branchDot, branch)
 		}
-		
+
 		_, _ = fmt.Fprintf(r.stdout, "  %s\n", branchText)
 	}
-	
+
 	// Display base branch at the bottom with consistent spacing
 	baseBranch := stack[0]
 	_, _ = fmt.Fprintf(r.stdout, "  %s (base)\n", baseBranch)

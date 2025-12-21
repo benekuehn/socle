@@ -25,7 +25,7 @@ type syncCmdRunner struct {
 	// Config flags
 	doRestack bool
 	noFetch   bool
-	noSurvey   bool // Auto-confirm any prompts for tests
+	noSurvey  bool // Auto-confirm any prompts for tests
 }
 
 func (r *syncCmdRunner) run(cmd *cobra.Command) error {

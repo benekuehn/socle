@@ -76,7 +76,7 @@ func (r *createCmdRunner) run() error {
 			return fmt.Errorf("failed to check existing branch relationships: %w", err)
 		}
 		childMap := git.BuildChildMap(parentMap)
-		
+
 		if existingChildren, hasChildren := childMap[parentBranch]; hasChildren && len(existingChildren) > 0 {
 			return fmt.Errorf("non-base branch '%s' already has child branch(es): %v. Only base branches can have multiple children. Use 'so up' to navigate to the existing child or create a new stack from the base branch", parentBranch, existingChildren)
 		}
