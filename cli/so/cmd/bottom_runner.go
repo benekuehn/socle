@@ -17,6 +17,8 @@ type bottomCmdRunner struct {
 	stdout io.Writer
 	stderr io.Writer
 	stdin  io.Reader
+
+	nonInteractive bool
 }
 
 func (r *bottomCmdRunner) run() error {
@@ -37,6 +39,9 @@ func (r *bottomCmdRunner) run() error {
 				return nil
 			}
 			return checkoutBranch(target, stackInfo.CurrentBranch)
+		}
+		if r.nonInteractive {
+			return fmt.Errorf("multiple stacks found from base branch '%s'; navigate to a specific stack branch before running this command in non-interactive mode", stackInfo.CurrentBranch)
 		}
 		branch, _, errSel := r.promptSelectStack(stackInfo.CurrentBranch, cmdutils.PurposeBottom)
 		if errSel != nil {

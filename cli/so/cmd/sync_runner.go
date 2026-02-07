@@ -22,6 +22,8 @@ type syncCmdRunner struct {
 	stderr io.Writer
 	stdin  io.Reader // For prompts
 
+	nonInteractive bool
+
 	// Config flags
 	doRestack bool
 	noFetch   bool
@@ -146,13 +148,17 @@ func (r *syncCmdRunner) run(cmd *cobra.Command) error {
 		}
 
 		confirm := r.noSurvey // Auto-confirm for tests
-		if !r.noSurvey {
+		if !r.noSurvey && !r.nonInteractive {
 			prompt := &survey.Confirm{
 				Message: "Delete these " + strconv.Itoa(len(branchesToDelete)) + " branches?",
 			}
 			if err := survey.AskOne(prompt, &confirm); err != nil {
 				return fmt.Errorf("failed to get user confirmation: %w", err)
 			}
+		}
+
+		if r.nonInteractive && !r.noSurvey {
+			_, _ = fmt.Fprintln(r.stdout, ui.Colors.InfoStyle.Render("Non-interactive mode: skipping branch deletion; rerun without --non-interactive to confirm."))
 		}
 
 		if confirm {
@@ -241,12 +247,13 @@ func (r *syncCmdRunner) run(cmd *cobra.Command) error {
 	if r.doRestack {
 		_, _ = fmt.Fprintln(r.stdout, "\nRestacking branches...")
 		restackRunner := &restackCmdRunner{
-			logger:  r.logger,
-			stdout:  r.stdout,
-			stderr:  r.stderr,
-			stdin:   r.stdin,
-			noFetch: true, // We already fetched
-			noPush:  true, // Don't push during sync
+			logger:         r.logger,
+			stdout:         r.stdout,
+			stderr:         r.stderr,
+			stdin:          r.stdin,
+			nonInteractive: r.nonInteractive,
+			noFetch:        true, // We already fetched
+			noPush:         true, // Don't push during sync
 		}
 		if err := restackRunner.run(cmd); err != nil {
 			return fmt.Errorf("failed during restack: %w", err)

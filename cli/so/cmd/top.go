@@ -25,10 +25,11 @@ If you are on a base branch with multiple stacks, you will be prompted to select
 		logger := slog.Default()
 
 		runner := &topCmdRunner{
-			logger: logger,
-			stdout: cmd.OutOrStdout(),
-			stderr: cmd.ErrOrStderr(),
-			stdin:  os.Stdin,
+			logger:         logger,
+			stdout:         cmd.OutOrStdout(),
+			stderr:         cmd.ErrOrStderr(),
+			stdin:          os.Stdin,
+			nonInteractive: nonInteractive,
 		}
 
 		return runner.run()

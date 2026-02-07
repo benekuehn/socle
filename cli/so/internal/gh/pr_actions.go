@@ -21,9 +21,12 @@ import (
 // SubmitBranchOptions holds configuration for the SubmitBranch action.
 type SubmitBranchOptions struct {
 	IsDraft               bool
+	SubmitTitle           string
+	SubmitBody            string
 	TestSubmitTitle       string
 	TestSubmitBody        string
 	TestSubmitEditConfirm bool
+	NonInteractive        bool
 }
 
 // ErrSubmitCancelled indicates the user cancelled the operation during a prompt.
@@ -173,6 +176,11 @@ func promptForPRDetails(cmd *cobra.Command, branch, parent string, opts SubmitBr
 	}
 	if opts.TestSubmitTitle != "" {
 		title = opts.TestSubmitTitle
+	} else if opts.SubmitTitle != "" {
+		title = opts.SubmitTitle
+	} else if opts.NonInteractive {
+		title = defaultTitle
+		_, _ = fmt.Printf("  Non-interactive mode: using default PR title: %q\n", title)
 	} else {
 		titlePrompt := &survey.Input{Message: "Pull Request Title:", Default: defaultTitle}
 		// Call renamed helper function
@@ -185,6 +193,8 @@ func promptForPRDetails(cmd *cobra.Command, branch, parent string, opts SubmitBr
 	if opts.TestSubmitBody != "" {
 		slog.Debug("Using body from test flag", "testBody", opts.TestSubmitBody)
 		body = opts.TestSubmitBody
+	} else if opts.SubmitBody != "" {
+		body = opts.SubmitBody
 	} else {
 		templateContent, errTpl := git.FindAndReadPRTemplate()
 		if errTpl != nil {
@@ -198,6 +208,8 @@ func promptForPRDetails(cmd *cobra.Command, branch, parent string, opts SubmitBr
 		editBody := false
 		if opts.TestSubmitEditConfirm {
 			editBody = true
+		} else if opts.NonInteractive {
+			editBody = false
 		} else {
 			confirmPrompt := &survey.Confirm{Message: "Edit description before submitting?", Default: false}
 			surveyErr = survey.AskOne(confirmPrompt, &editBody, survey.WithStdio(os.Stdin, os.Stdout, os.Stderr))

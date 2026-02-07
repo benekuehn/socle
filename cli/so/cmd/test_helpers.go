@@ -150,8 +150,14 @@ func runSoCommand(t *testing.T, args ...string) error {
 // initializeCobraAppForTest initializes a Cobra command for testing
 func initializeCobraAppForTest() (*cobra.Command, error) {
 	var testDebugLogging bool
+	nonInteractive = false
+	testSelectStackIndexTop = -1
+	testSelectStackChildTop = ""
+	testSelectStackIndexBottom = -1
+	testSelectStackChildBottom = ""
 	testRootCmd := &cobra.Command{Use: "so", SilenceErrors: true, SilenceUsage: true}
 	testRootCmd.PersistentFlags().BoolVar(&testDebugLogging, "debug", false, "Enable debug logging output")
+	testRootCmd.PersistentFlags().BoolVar(&nonInteractive, "non-interactive", false, "Disable interactive prompts")
 	addCmd := func(c *cobra.Command) { testRootCmd.AddCommand(c) }
 	addCmd(trackCmd)
 	addCmd(logCmd)

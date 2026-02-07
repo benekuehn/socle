@@ -176,4 +176,14 @@ func TestBottomCommand(t *testing.T) {
 		require.NoError(t, gitErr)
 		assert.Equal(t, "untracked-feat", currentBranch)
 	})
+	t.Run("Non-interactive fails on base branch with multiple stacks", func(t *testing.T) {
+		repoPath, cleanup := setupRepoWithMultipleStacks(t)
+		defer cleanup()
+
+		testutils.RunCommand(t, repoPath, "git", "checkout", "main")
+		_, _, err := runSoCommandWithOutput(t, "--non-interactive", "bottom")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "multiple stacks found from base branch")
+	})
+
 }

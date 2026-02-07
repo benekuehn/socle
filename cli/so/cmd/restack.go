@@ -28,10 +28,11 @@ Process:
 		logger := slog.Default()
 
 		runner := &restackCmdRunner{
-			logger: logger,
-			stdout: cmd.OutOrStdout(),
-			stderr: cmd.ErrOrStderr(),
-			stdin:  os.Stdin, // Needed for push prompt
+			logger:         logger,
+			stdout:         cmd.OutOrStdout(),
+			stderr:         cmd.ErrOrStderr(),
+			stdin:          os.Stdin, // Needed for push prompt
+			nonInteractive: nonInteractive,
 
 			// Populate config from flags
 			noFetch:   cmd.Flag("no-fetch").Changed,

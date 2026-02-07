@@ -23,15 +23,15 @@ so --version
 Most so commands need to be run from within a Git repository.
 
 <!-- CLI_REFERENCE_START -->
-
-_This section is auto-generated. Do not edit manually._
+*This section is auto-generated. Do not edit manually.*
 
 ### so bottom
-
 Navigates to the first branch stacked directly on top of the base branch.
 
 The stack is determined by the tracking information set via 'so track'.
 This command finds the first branch after the base in the sequence leading to the top.
+
+If you are on a base branch with multiple stacks, you will be prompted to select which stack to navigate to.
 
 ```
 so bottom [flags]
@@ -44,21 +44,20 @@ so bottom [flags]
 ### Options inherited from parent commands
 
 ```
-      --debug   Enable debug logging output
+      --debug             Enable debug logging output
+      --non-interactive   Disable interactive prompts (safe defaults are used where possible)
 ```
 
 ---
 
 ### so create
-
 Creates a new branch stacked on top of the current branch.
 
 If a [branch-name] is not provided, you will be prompted for one.
 
 If there are uncommitted changes in the working directory:
-
--   They will be staged and committed onto the _new_ branch.
--   You must provide a commit message via the -m flag, or you will be prompted.
+  - They will be staged and committed onto the *new* branch.
+  - You must provide a commit message via the -m flag, or you will be prompted.
 
 ```
 so create [branch-name] [flags]
@@ -72,13 +71,13 @@ so create [branch-name] [flags]
 ### Options inherited from parent commands
 
 ```
-      --debug   Enable debug logging output
+      --debug             Enable debug logging output
+      --non-interactive   Disable interactive prompts (safe defaults are used where possible)
 ```
 
 ---
 
 ### so down
-
 Navigates one level down the stack towards the base branch.
 
 The stack is determined by the tracking information set via 'so track'.
@@ -95,13 +94,13 @@ so down [flags]
 ### Options inherited from parent commands
 
 ```
-      --debug   Enable debug logging output
+      --debug             Enable debug logging output
+      --non-interactive   Disable interactive prompts (safe defaults are used where possible)
 ```
 
 ---
 
 ### so log
-
 Shows the sequence of tracked branches leading from the stack's base
 branch to the current branch, based on metadata set by 'socle track'.
 Includes status indicating if a branch needs rebasing onto its parent.
@@ -117,27 +116,26 @@ so log [flags]
 ### Options inherited from parent commands
 
 ```
-      --debug   Enable debug logging output
+      --debug             Enable debug logging output
+      --non-interactive   Disable interactive prompts (safe defaults are used where possible)
 ```
 
 ---
 
 ### so restack
-
 Updates the current stack by rebasing each branch sequentially onto its updated parent.
 Handles remote 'origin' automatically.
 
 Process:
-
 1. Checks for clean state & existing Git rebase.
 2. Fetches the base branch from 'origin' (unless --no-fetch).
 3. Rebases each branch in the stack onto the latest commit of its parent.
-    - Skips branches that are already up-to-date.
+   - Skips branches that are already up-to-date.
 4. If conflicts occur:
-    - Stops and instructs you to use standard Git commands (status, add, rebase --continue / --abort).
-    - Run 'so restack' again after resolving or aborting the Git rebase.
+   - Stops and instructs you to use standard Git commands (status, add, rebase --continue / --abort).
+   - Run 'so restack' again after resolving or aborting the Git rebase.
 5. If successful:
-    - Prompts to force-push updated branches to 'origin' (use --force-push or --no-push to skip prompt).
+   - Prompts to force-push updated branches to 'origin' (use --force-push or --no-push to skip prompt).
 
 ```
 so restack [flags]
@@ -153,48 +151,50 @@ so restack [flags]
 ### Options inherited from parent commands
 
 ```
-      --debug   Enable debug logging output
+      --debug             Enable debug logging output
+      --non-interactive   Disable interactive prompts (safe defaults are used where possible)
 ```
 
 ---
 
 ### so submit
-
 Pushes branches in the current stack to the remote ('origin' by default)
 and creates or updates corresponding GitHub Pull Requests.
 
--   Requires GITHUB_TOKEN environment variable with 'repo' scope or auth setup via 'gh auth login'.
--   Reads PR templates from .github/ or root directory.
--   Creates Draft PRs by default (use --no-draft to override).
--   Stores PR numbers locally in '.git/config' for future updates.
+- Requires GITHUB_TOKEN environment variable with 'repo' scope or auth setup via 'gh auth login'.
+- Reads PR templates from .github/ or root directory.
+- Creates Draft PRs by default (use --no-draft to override).
+- Stores PR numbers locally in '.git/config' for future updates.
 
 ```
 so submit [flags]
 ```
 
 ```
-      --force      Force push branches
-  -h, --help       help for submit
-      --no-draft   Create non-draft Pull Requests
-      --no-push    Skip pushing branches to remote
+      --body string        PR body (markdown) to use when creating pull requests
+      --body-file string   Path to file containing PR body markdown
+      --force              Force push branches
+  -h, --help               help for submit
+      --no-draft           Create non-draft Pull Requests
+      --no-push            Skip pushing branches to remote
+      --title string       PR title to use when creating pull requests
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --debug   Enable debug logging output
+      --debug             Enable debug logging output
+      --non-interactive   Disable interactive prompts (safe defaults are used where possible)
 ```
 
 ---
 
 ### so sync
-
 Syncs all branches with remote, prompting to delete any branches for PRs that have been merged or closed.
 Restacks all branches in your repository that can be restacked without conflicts.
 If trunk cannot be fast-forwarded to match remote, overwrites trunk with the remote version.
 
 Process:
-
 1. Fetches all branches from remote
 2. Checks PR status for each branch
 3. Prompts to delete branches with merged/closed PRs
@@ -213,17 +213,19 @@ so sync [flags]
 ### Options inherited from parent commands
 
 ```
-      --debug   Enable debug logging output
+      --debug             Enable debug logging output
+      --non-interactive   Disable interactive prompts (safe defaults are used where possible)
 ```
 
 ---
 
 ### so top
-
 Navigates to the highest branch in the current stack.
 
 The stack is determined by the tracking information set via 'so track'.
 This command finds the last branch in the sequence starting from the base branch.
+
+If you are on a base branch with multiple stacks, you will be prompted to select which stack to navigate to the top of.
 
 ```
 so top [flags]
@@ -236,13 +238,13 @@ so top [flags]
 ### Options inherited from parent commands
 
 ```
-      --debug   Enable debug logging output
+      --debug             Enable debug logging output
+      --non-interactive   Disable interactive prompts (safe defaults are used where possible)
 ```
 
 ---
 
 ### so track
-
 Associates the current branch with a parent branch to define its position
 within a stack. This allows 'socle show' to display the specific stack you are on.
 
@@ -251,19 +253,20 @@ so track [flags]
 ```
 
 ```
-  -h, --help   help for track
+  -d, --discover   Discover remote metadata (e.g. existing pull requests) while tracking
+  -h, --help       help for track
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --debug   Enable debug logging output
+      --debug             Enable debug logging output
+      --non-interactive   Disable interactive prompts (safe defaults are used where possible)
 ```
 
 ---
 
 ### so untrack
-
 Removes a branch from the stack by clearing its tracking information.
 A branch can only be untracked if it has no children depending on it higher in the stack.
 
@@ -278,17 +281,19 @@ so untrack [flags]
 ### Options inherited from parent commands
 
 ```
-      --debug   Enable debug logging output
+      --debug             Enable debug logging output
+      --non-interactive   Disable interactive prompts (safe defaults are used where possible)
 ```
 
 ---
 
 ### so up
-
 Navigates one level up the stack towards the tip.
 
 The stack is determined by the tracking information set via 'so track'.
 This command finds the immediate descendent of the current branch.
+
+If you are on a base branch with multiple stacks, you will be prompted to select which stack to navigate to.
 
 ```
 so up [flags]
@@ -301,9 +306,9 @@ so up [flags]
 ### Options inherited from parent commands
 
 ```
-      --debug   Enable debug logging output
+      --debug             Enable debug logging output
+      --non-interactive   Disable interactive prompts (safe defaults are used where possible)
 ```
-
 <!-- CLI_REFERENCE_END -->
 
 ### Configuration

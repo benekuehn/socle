@@ -27,10 +27,11 @@ If there are uncommitted changes in the working directory:
 		}
 
 		runner := &createCmdRunner{
-			logger: logger,
-			stdout: cmd.OutOrStdout(),
-			stderr: cmd.ErrOrStderr(),
-			stdin:  os.Stdin,
+			logger:         logger,
+			stdout:         cmd.OutOrStdout(),
+			stderr:         cmd.ErrOrStderr(),
+			stdin:          os.Stdin,
+			nonInteractive: nonInteractive,
 
 			// Populate config from flags
 			createMessage: cmd.Flag("message").Value.String(),
