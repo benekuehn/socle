@@ -20,15 +20,18 @@ type submittedPrInfo struct {
 
 type submitCmdRunner struct {
 	// Dependencies
-	logger   *slog.Logger
-	ghClient gh.ClientInterface
-	stdout   io.Writer
-	stderr   io.Writer
+	logger         *slog.Logger
+	ghClient       gh.ClientInterface
+	stdout         io.Writer
+	stderr         io.Writer
+	nonInteractive bool
 
 	// Configuration from flags
-	forcePush bool
-	noPush    bool
-	draft     bool
+	forcePush   bool
+	noPush      bool
+	draft       bool
+	submitTitle string
+	submitBody  string
 
 	// --- TESTING FLAGS --- (passed via options if needed, or kept if strictly for cmd level tests)
 	testSubmitTitle       string
@@ -257,9 +260,12 @@ func (r *submitCmdRunner) submitBranch( // Make it a method of submitCmdRunner
 	opts := gh.SubmitBranchOptions{
 		// Use runner's config
 		IsDraft:               r.draft,
+		SubmitTitle:           r.submitTitle,
+		SubmitBody:            r.submitBody,
 		TestSubmitTitle:       r.testSubmitTitle,
 		TestSubmitBody:        r.testSubmitBody,
 		TestSubmitEditConfirm: r.testSubmitEditConfirm,
+		NonInteractive:        r.nonInteractive,
 	}
 	r.logger.Debug("Calling gh.SubmitBranch", "branch", branch, "options", opts)
 

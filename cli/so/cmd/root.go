@@ -10,7 +10,8 @@ import (
 )
 
 var (
-	debugLogging bool
+	debugLogging   bool
+	nonInteractive bool
 	// version is set by ldflags during the build process
 	version = "dev" // Default value
 )
@@ -64,6 +65,7 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&debugLogging, "debug", false, "Enable debug logging output")
+	rootCmd.PersistentFlags().BoolVar(&nonInteractive, "non-interactive", false, "Disable interactive prompts (safe defaults are used where possible)")
 }
 
 // GetRootCmd returns the root command instance.

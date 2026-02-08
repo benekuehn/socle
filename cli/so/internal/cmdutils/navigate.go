@@ -32,7 +32,7 @@ var ErrMultipleStacksBase = fmt.Errorf("multiple stacks originate from base; sel
 // ComputeLinearTarget determines the next target branch for up/top/bottom navigation within a linear stack.
 // Returns targetBranch (empty if already at destination), and a message to show when already at boundary.
 func ComputeLinearTarget(currentBranch string, stack []string, purpose NavigationPurpose) (targetBranch string, alreadyMsg string, err error) {
-	if stack == nil || len(stack) == 0 {
+	if len(stack) == 0 {
 		return "", "", fmt.Errorf("empty stack for branch '%s'", currentBranch)
 	}
 	idx := FindIndexInStack(currentBranch, stack)

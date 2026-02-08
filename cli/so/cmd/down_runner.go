@@ -24,7 +24,7 @@ func (r *downCmdRunner) run() error {
 	r.logger.Debug("Retrieved stack info", "currentBranch", stackInfo.CurrentBranch, "fullStack", stackInfo.FullStack)
 
 	// Always use CurrentStack (even when multiple stacks originate at base) for downward navigation.
-	if stackInfo.CurrentStack == nil || len(stackInfo.CurrentStack) == 0 {
+	if len(stackInfo.CurrentStack) == 0 {
 		return fmt.Errorf("internal error: no current stack found for branch '%s'", stackInfo.CurrentBranch)
 	}
 

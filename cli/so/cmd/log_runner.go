@@ -619,39 +619,3 @@ func (r *logCmdRunner) displaySingleStackDetailed(ctx context.Context, stack []s
 
 	return nil
 }
-
-func (r *logCmdRunner) displaySingleStack(stack []string, currentBranch string) {
-	if len(stack) <= 1 {
-		// Stack with only base branch - show it indented to match other output
-		_, _ = fmt.Fprintf(r.stdout, "  %s (base, no branches)\n\n", stack[0])
-		return
-	}
-
-	// Display branches from top to bottom (like so log), with proper spacing
-	// Skip the base branch (index 0) and show stack branches in reverse order
-	for i := len(stack) - 1; i >= 1; i-- {
-		branch := stack[i]
-
-		// Use the same dot pattern as so log
-		branchDot := "○" // Empty circle for branch status (could be enhanced later with actual status)
-		statusDot := "●" // Filled circle for git status
-
-		// Check if this is the current branch and style accordingly
-		isCurrentBranch := branch == currentBranch
-		var branchText string
-
-		if isCurrentBranch {
-			// Highlight current branch similar to log output
-			branchText = ui.Colors.InfoStyle.Render(fmt.Sprintf("%s %s %s", statusDot, branchDot, branch))
-		} else {
-			branchText = fmt.Sprintf("%s %s %s", statusDot, branchDot, branch)
-		}
-
-		_, _ = fmt.Fprintf(r.stdout, "  %s\n", branchText)
-	}
-
-	// Display base branch at the bottom with consistent spacing
-	baseBranch := stack[0]
-	_, _ = fmt.Fprintf(r.stdout, "  %s (base)\n", baseBranch)
-	_, _ = fmt.Fprintln(r.stdout) // Add blank line after each stack
-}

@@ -17,6 +17,8 @@ type createCmdRunner struct {
 	stderr io.Writer
 	stdin  io.Reader // Needed for survey prompts
 
+	nonInteractive bool
+
 	// Config flags
 	createMessage string
 	branchNameArg string // Optional branch name from args[0]
@@ -89,6 +91,8 @@ func (r *createCmdRunner) run() error {
 		newBranchName = r.testBranchName
 	} else if r.branchNameArg != "" {
 		newBranchName = r.branchNameArg
+	} else if r.nonInteractive {
+		return fmt.Errorf("branch name is required in non-interactive mode; pass it as an argument")
 	} else {
 		prompt := &survey.Input{Message: "Enter name for the new branch:"}
 		surveyOpts := survey.WithStdio(r.stdin.(*os.File), r.stderr.(*os.File), r.stderr.(*os.File))
@@ -121,6 +125,8 @@ func (r *createCmdRunner) run() error {
 	if hasChanges {
 		if r.createMessage != "" {
 			commitMsg = r.createMessage
+		} else if r.nonInteractive {
+			return fmt.Errorf("commit message is required in non-interactive mode when uncommitted changes exist; pass -m")
 		} else {
 			prompt := &survey.Input{Message: "Enter commit message for current changes:"}
 			surveyOpts := survey.WithStdio(r.stdin.(*os.File), r.stderr.(*os.File), r.stderr.(*os.File))
@@ -163,6 +169,8 @@ func (r *createCmdRunner) run() error {
 		if r.testStageChoice != "" {
 			r.logger.Debug("Using stage choice from test flag", "testStageChoice", r.testStageChoice)
 			stageChoice = r.testStageChoice
+		} else if r.nonInteractive {
+			stageChoice = "add-all"
 		} else {
 			prompt := &survey.Select{
 				Message: "You have uncommitted changes. How would you like to stage them?",

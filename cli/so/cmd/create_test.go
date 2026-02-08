@@ -122,6 +122,20 @@ func TestCreateCommand(t *testing.T) {
 
 		assert.Contains(t, err.Error(), "already exists", "Error message mismatch")
 	})
+
+	t.Run("Non-interactive requires branch name", func(t *testing.T) {
+		repoPath, cleanup := testutils.SetupGitRepo(t)
+		defer cleanup()
+
+		testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature/a")
+		err := runSoCommand(t, "track", "--test-parent=main")
+		require.NoError(t, err)
+
+		err = runSoCommand(t, "--non-interactive", "create")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "branch name is required in non-interactive mode")
+	})
+
 	// TODO: Add tests for prompting (needs more setup or PTY)
 	// TODO: Add tests for staging choices ('add-p', 'cancel')
 	// TODO: Add test for 'add -p' but staging nothing (--test-addp-empty)

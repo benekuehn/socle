@@ -20,6 +20,8 @@ type restackCmdRunner struct {
 	stderr io.Writer
 	stdin  io.Reader // For push prompt
 
+	nonInteractive bool
+
 	// Config flags
 	noFetch   bool
 	forcePush bool
@@ -178,6 +180,9 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 	} else if r.noPush {
 		doPush = false
 		r.logger.Debug("Pushing disabled via --no-push flag.")
+	} else if r.nonInteractive {
+		doPush = false
+		r.logger.Debug("Skipping push prompt in non-interactive mode; use --force-push to push.")
 	} else {
 		// Prompt user if flags don't decide
 		confirmPush := false

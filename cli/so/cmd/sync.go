@@ -28,10 +28,11 @@ Process:
 		noSurvey, _ := cmd.Flags().GetBool("test-no-survey")
 
 		runner := &syncCmdRunner{
-			logger: logger,
-			stdout: cmd.OutOrStdout(),
-			stderr: cmd.ErrOrStderr(),
-			stdin:  os.Stdin, // Needed for prompts
+			logger:         logger,
+			stdout:         cmd.OutOrStdout(),
+			stderr:         cmd.ErrOrStderr(),
+			stdin:          os.Stdin, // Needed for prompts
+			nonInteractive: nonInteractive,
 
 			// Populate config from flags
 			doRestack: !cmd.Flag("no-restack").Changed,
