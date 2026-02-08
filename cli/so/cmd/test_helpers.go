@@ -147,7 +147,12 @@ func runSoCommand(t *testing.T, args ...string) error {
 	return err
 }
 
-// initializeCobraAppForTest initializes a Cobra command for testing
+// initializeCobraAppForTest initializes a Cobra command for testing.
+//
+// NOTE: This function mutates global variables (nonInteractive, testSelectStackIndex*, etc.)
+// which are shared state. Tests using this helper should NOT be run in parallel (t.Parallel())
+// to avoid data races. A future improvement would be to scope these values to command instances
+// rather than using globals.
 func initializeCobraAppForTest() (*cobra.Command, error) {
 	var testDebugLogging bool
 	nonInteractive = false

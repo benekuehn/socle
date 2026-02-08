@@ -24,11 +24,9 @@ and creates or updates corresponding GitHub Pull Requests.
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger := slog.Default()
 
-		body := cmd.Flag("body").Value.String()
-		bodyFile := cmd.Flag("body-file").Value.String()
-		if body != "" && bodyFile != "" {
-			return fmt.Errorf("--body and --body-file are mutually exclusive")
-		}
+		body, _ := cmd.Flags().GetString("body")
+		bodyFile, _ := cmd.Flags().GetString("body-file")
+		// Note: mutual exclusivity is enforced via MarkFlagsMutuallyExclusive in init()
 		if bodyFile != "" {
 			bodyBytes, err := os.ReadFile(bodyFile)
 			if err != nil {
@@ -37,6 +35,11 @@ and creates or updates corresponding GitHub Pull Requests.
 			body = string(bodyBytes)
 		}
 
+		title, _ := cmd.Flags().GetString("title")
+		forcePush, _ := cmd.Flags().GetBool("force")
+		noPush, _ := cmd.Flags().GetBool("no-push")
+		noDraft, _ := cmd.Flags().GetBool("no-draft")
+
 		runner := &submitCmdRunner{
 			logger:         logger,
 			stdout:         cmd.OutOrStdout(),
@@ -44,15 +47,15 @@ and creates or updates corresponding GitHub Pull Requests.
 			nonInteractive: nonInteractive,
 
 			// Populate config from flags
-			forcePush:   cmd.Flag("force").Changed,
-			noPush:      cmd.Flag("no-push").Changed,
-			draft:       !cmd.Flag("no-draft").Changed,
-			submitTitle: cmd.Flag("title").Value.String(),
+			forcePush:   forcePush,
+			noPush:      noPush,
+			draft:       !noDraft,
+			submitTitle: title,
 			submitBody:  body,
 			// --- TESTING FLAGS ---
-			testSubmitTitle:       cmd.Flag("test-title").Value.String(),
-			testSubmitBody:        cmd.Flag("test-body").Value.String(),
-			testSubmitEditConfirm: cmd.Flag("test-edit-confirm").Changed, // Assuming bool flag
+			testSubmitTitle:       mustGetString(cmd, "test-title"),
+			testSubmitBody:        mustGetString(cmd, "test-body"),
+			testSubmitEditConfirm: mustGetBool(cmd, "test-edit-confirm"),
 		}
 
 		return runner.run(context.Background(), cmd)
@@ -75,4 +78,24 @@ func init() {
 	_ = submitCmd.Flags().MarkHidden("test-title")
 	_ = submitCmd.Flags().MarkHidden("test-body")
 	_ = submitCmd.Flags().MarkHidden("test-edit-confirm")
+
+	submitCmd.MarkFlagsMutuallyExclusive("body", "body-file")
+}
+
+// mustGetString is a helper that panics if the flag doesn't exist (programming error).
+func mustGetString(cmd *cobra.Command, name string) string {
+	v, err := cmd.Flags().GetString(name)
+	if err != nil {
+		panic(fmt.Sprintf("flag %q not defined: %v", name, err))
+	}
+	return v
+}
+
+// mustGetBool is a helper that panics if the flag doesn't exist (programming error).
+func mustGetBool(cmd *cobra.Command, name string) bool {
+	v, err := cmd.Flags().GetBool(name)
+	if err != nil {
+		panic(fmt.Sprintf("flag %q not defined: %v", name, err))
+	}
+	return v
 }
