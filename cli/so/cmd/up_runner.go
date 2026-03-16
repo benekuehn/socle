@@ -28,7 +28,7 @@ func (r *upCmdRunner) run() error {
 	r.logger.Debug("Retrieved stack info", "currentBranch", stackInfo.CurrentBranch, "fullStack", stackInfo.FullStack)
 
 	// CASE 1: On base branch with multiple stacks
-	if stackInfo.FullStack == nil && stackInfo.CurrentBranch == stackInfo.BaseBranch {
+	if stackInfo.FullStack == nil {
 		if target, handled, selErr := cmdutils.ResolveTestStackSelection(stackInfo.CurrentBranch, cmdutils.PurposeUp, testSelectStackIndex, testSelectStackChild); handled {
 			if selErr != nil {
 				return selErr
@@ -48,22 +48,7 @@ func (r *upCmdRunner) run() error {
 		return checkoutBranch(branch, stackInfo.CurrentBranch)
 	}
 
-	// CASE 2: Inside lineage (multi-stack env) with FullStack nil
-	if stackInfo.FullStack == nil {
-		branch, msg, navErr := cmdutils.ComputeLinearTarget(stackInfo.CurrentBranch, stackInfo.CurrentStack, cmdutils.PurposeUp)
-		if navErr != nil {
-			return navErr
-		}
-		if branch == "" {
-			if msg != "" {
-				_, _ = fmt.Fprintf(r.stdout, "%s\n", msg)
-			}
-			return nil
-		}
-		return checkoutBranch(branch, stackInfo.CurrentBranch)
-	}
-
-	// CASE 3: Standard linear stack
+	// CASE 2: Standard linear stack
 	branch, msg, navErr := cmdutils.ComputeLinearTarget(stackInfo.CurrentBranch, stackInfo.FullStack, cmdutils.PurposeUp)
 	if navErr != nil {
 		return navErr
@@ -84,7 +69,7 @@ func (r *upCmdRunner) promptSelectStack(baseBranch string, purpose cmdutils.Navi
 		return "", true, err
 	}
 	if len(stacks) == 0 {
-		_, _ = fmt.Fprintf(r.stdout, "No stacks found starting from base branch '%s'.\n", baseBranch)
+		_, _ = fmt.Fprintf(r.stdout, "No stacks found starting from branch '%s'.\n", baseBranch)
 		return "", true, nil
 	}
 	var selectedOption string

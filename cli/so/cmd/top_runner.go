@@ -30,7 +30,7 @@ func (r *topCmdRunner) run() error {
 	r.logger.Debug("Retrieved stack info", "currentBranch", stackInfo.CurrentBranch, "fullStack", stackInfo.FullStack)
 
 	// CASE 1: Base branch with multiple stacks
-	if stackInfo.FullStack == nil && stackInfo.CurrentBranch == stackInfo.BaseBranch {
+	if stackInfo.FullStack == nil {
 		if target, handled, selErr := cmdutils.ResolveTestStackSelection(stackInfo.CurrentBranch, cmdutils.PurposeTop, testSelectStackIndexTop, testSelectStackChildTop); handled {
 			if selErr != nil {
 				return selErr
@@ -41,7 +41,7 @@ func (r *topCmdRunner) run() error {
 			return checkoutBranch(target, stackInfo.CurrentBranch)
 		}
 		if r.nonInteractive {
-			return fmt.Errorf("multiple stacks found from base branch '%s'; navigate to a specific stack branch before running this command in non-interactive mode", stackInfo.CurrentBranch)
+			return fmt.Errorf("multiple stacks found from branch '%s'; navigate to a specific stack branch before running this command in non-interactive mode", stackInfo.CurrentBranch)
 		}
 		branch, _, errSel := r.promptSelectStack(stackInfo.CurrentBranch, cmdutils.PurposeTop)
 		if errSel != nil {
@@ -53,22 +53,7 @@ func (r *topCmdRunner) run() error {
 		return checkoutBranch(branch, stackInfo.CurrentBranch)
 	}
 
-	// CASE 2: Inside lineage (multi-stack env) with FullStack nil -> use CurrentStack
-	if stackInfo.FullStack == nil {
-		branch, msg, navErr := cmdutils.ComputeLinearTarget(stackInfo.CurrentBranch, stackInfo.CurrentStack, cmdutils.PurposeTop)
-		if navErr != nil {
-			return navErr
-		}
-		if branch == "" {
-			if msg != "" {
-				_, _ = fmt.Fprintf(r.stdout, "%s\n", msg)
-			}
-			return nil
-		}
-		return checkoutBranch(branch, stackInfo.CurrentBranch)
-	}
-
-	// CASE 3: Standard linear stack
+	// CASE 2: Standard linear stack
 	branch, msg, navErr := cmdutils.ComputeLinearTarget(stackInfo.CurrentBranch, stackInfo.FullStack, cmdutils.PurposeTop)
 	if navErr != nil {
 		return navErr
@@ -88,7 +73,7 @@ func (r *topCmdRunner) promptSelectStack(baseBranch string, purpose cmdutils.Nav
 		return "", true, err
 	}
 	if len(stacks) == 0 {
-		_, _ = fmt.Fprintf(r.stdout, "No stacks found starting from base branch '%s'.\n", baseBranch)
+		_, _ = fmt.Fprintf(r.stdout, "No stacks found starting from branch '%s'.\n", baseBranch)
 		return "", true, nil
 	}
 	var selectedOption string

@@ -103,6 +103,28 @@ func TestCreateCommand(t *testing.T) {
 
 	})
 
+	t.Run("Create branch allows multiple children on non-base branch", func(t *testing.T) {
+		repoPath, cleanup := testutils.SetupGitRepo(t)
+		defer cleanup()
+
+		testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature/a")
+		err := runSoCommand(t, "track", "--test-parent=main")
+		require.NoError(t, err)
+
+		testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature/b")
+		err = runSoCommand(t, "track", "--test-parent=feature/a")
+		require.NoError(t, err)
+
+		testutils.RunCommand(t, repoPath, "git", "checkout", "feature/a")
+		err = runSoCommand(t, "create", "feature/c")
+		require.NoError(t, err, "so create should allow additional children on non-base branches")
+
+		parent, _ := git.GetGitConfig("branch.feature/c.socle-parent")
+		base, _ := git.GetGitConfig("branch.feature/c.socle-base")
+		assert.Equal(t, "feature/a", parent)
+		assert.Equal(t, "main", base)
+	})
+
 	t.Run("Create branch fails if branch already exists", func(t *testing.T) {
 		repoPath, cleanup := testutils.SetupGitRepo(t)
 		defer cleanup()

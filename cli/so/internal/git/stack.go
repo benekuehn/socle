@@ -23,164 +23,84 @@ type StackInfo struct {
 }
 
 // Invariants / Semantics:
-// - FullStack is a linear ordered slice from BaseBranch to tip when the base has <=1 child lineage.
-// - FullStack is set to nil ONLY when the currently checked out branch is a known base branch (main/master/develop)
-//   that has >1 tracked child branches, i.e. multiple independent stacks originate from it.
-//   In that case CurrentStack will contain just the base branch and navigation commands should prompt.
-// - When the current branch is NOT the base but the base has multiple child stacks, FullStack is still nil.
-//   CurrentStack then represents the lineage from the base to the current branch and navigation commands must
-//   treat it as the active linear stack without prompting for stack selection.
-// The navigation runners (up/top/bottom) implement this distinction; log command also follows these rules.
+// - FullStack is a linear ordered slice from BaseBranch to tip for the active lineage.
+// - FullStack is nil when CurrentBranch itself has multiple tracked children, because there is no
+//   single implicit "up/top/bottom" target without stack selection.
+// - CurrentStack always contains the lineage from BaseBranch to CurrentBranch.
 
 // GetStackInfo retrieves comprehensive information about the current branch stack.
 // It returns all stack-related information in a single StackInfo struct.
 func GetStackInfo() (*StackInfo, error) {
-	// 1. Get Current Branch
 	currentBranch, err := GetCurrentBranch()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current branch: %w", err)
 	}
 
-	// 2. Get all parent relationships at once
 	parentMap, err := GetAllSocleParents()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read tracking relationships: %w", err)
 	}
-
-	// Build the child map for later operations
 	childMap := BuildChildMap(parentMap)
 
-	// 3. Check if we are actually on a known base branch
 	knownBases := map[string]bool{"main": true, "master": true, "develop": true}
-	var baseBranch string
-	var currentStack []string
+	baseBranch := ""
 
 	if knownBases[currentBranch] {
 		baseBranch = currentBranch
-		currentStack = []string{baseBranch} // Stack is just the base itself
 	} else {
-		// 4. Check if current branch is tracked
 		baseConfigKey := fmt.Sprintf("branch.%s.socle-base", currentBranch)
-		baseBranchNameFromConfig, errBase := GetGitConfig(baseConfigKey)
-		isBaseNotFound := errors.Is(errBase, ErrConfigNotFound)
-
-		if isBaseNotFound {
+		baseBranch, err = GetGitConfig(baseConfigKey)
+		if errors.Is(err, ErrConfigNotFound) {
 			return nil, fmt.Errorf("current branch '%s' is not tracked by socle (missing socle-base config) and is not a known base branch.\nRun 'so track' on this branch first", currentBranch)
 		}
-		if errBase != nil {
-			return nil, fmt.Errorf("failed to read tracking base for '%s': %w", currentBranch, errBase)
-		}
-
-		baseBranch = baseBranchNameFromConfig
-
-		// 5. Build the stack by walking up the parents using the parentMap
-		currentStack = []string{currentBranch}
-		currentInLoop := currentBranch
-
-		for currentInLoop != baseBranch {
-			parent, hasParent := parentMap[currentInLoop]
-			if !hasParent {
-				return nil, fmt.Errorf("tracking information broken: parent not found for branch '%s', which is not the base '%s'. Cannot determine stack", currentInLoop, baseBranch)
-			}
-
-			// Prepend the found parent to the stack slice
-			currentStack = append([]string{parent}, currentStack...)
-
-			// Check if the parent we just added is the base branch
-			if parent == baseBranch {
-				break // We've reached the base, stack is complete
-			}
-
-			// Move up for the next iteration
-			currentInLoop = parent
-
-			// Safety break to prevent infinite loops in case of cyclic metadata
-			if len(currentStack) > 50 { // Arbitrary limit
-				return nil, fmt.Errorf("stack trace exceeds 50 levels, assuming cycle or error in tracking metadata")
-			}
+		if err != nil {
+			return nil, fmt.Errorf("failed to read tracking base for '%s': %w", currentBranch, err)
 		}
 	}
 
-	// 6. Determine the full ordered stack
-	slog.Debug("Determining full ordered stack...")
+	currentStack := []string{currentBranch}
+	for walker := currentBranch; walker != baseBranch; {
+		parent, ok := parentMap[walker]
+		if !ok {
+			return nil, fmt.Errorf("tracking information broken: parent not found for branch '%s', which is not the base '%s'. Cannot determine stack", walker, baseBranch)
+		}
+		currentStack = append([]string{parent}, currentStack...)
+		walker = parent
+		if len(currentStack) > 100 {
+			return nil, fmt.Errorf("stack trace exceeds 100 levels, assuming cycle or error in tracking metadata")
+		}
+	}
 
-	// Reconstruct the lineage from the base upwards
-	fullStack := []string{baseBranch}
-	current := baseBranch
-	visited := make(map[string]bool)
-	visited[current] = true
+	if children := childMap[currentBranch]; len(children) > 1 {
+		slog.Debug("Current branch has multiple children; full stack is ambiguous", "current", currentBranch, "children", children)
+		return &StackInfo{
+			CurrentBranch: currentBranch,
+			BaseBranch:    baseBranch,
+			CurrentStack:  currentStack,
+			FullStack:     nil,
+			ParentMap:     parentMap,
+			ChildMap:      childMap,
+		}, nil
+	}
 
+	fullStack := append([]string{}, currentStack...)
 	for {
-		children, found := childMap[current]
-		if !found || len(children) == 0 {
-			break // No more tracked children in this lineage
+		last := fullStack[len(fullStack)-1]
+		children := childMap[last]
+		if len(children) == 0 {
+			break
 		}
-
 		if len(children) > 1 {
-			if knownBases[current] {
-				// Base branch with multiple stacks.
-				// If we are CURRENTLY on the base branch itself, we cannot provide a single linear FullStack.
-				// If we are NOT on the base (i.e., navigating inside one lineage), we can still produce a FullStack
-				// by using currentStack (base->...->currentBranch) and then extending downward from currentBranch.
-				if currentBranch == current { // we are ON the base branch
-					slog.Debug("Base branch with multiple stacks detected (on base)", "base", current, "children", children)
-					return &StackInfo{
-						CurrentBranch: currentBranch,
-						BaseBranch:    baseBranch,
-						CurrentStack:  currentStack,
-						FullStack:     nil, // Signal that multiple stacks exist from base context
-						ParentMap:     parentMap,
-						ChildMap:      childMap,
-					}, nil
-				}
-				// We are inside lineage: Build full stack using known path to currentBranch then descend.
-				slog.Debug("Inside multi-stack lineage; reconstructing full lineage for current branch", "currentBranch", currentBranch)
-				fullStack = append([]string{}, currentStack...) // base->...->currentBranch
-				// Descend from currentBranch to tip
-				walker := currentBranch
-				for {
-					childList, foundChild := childMap[walker]
-					if !foundChild || len(childList) == 0 {
-						break
-					}
-					if len(childList) > 1 {
-						return nil, fmt.Errorf("non-base branch '%s' has multiple children %v, violating linear lineage assumption", walker, childList)
-					}
-					next := childList[0]
-					// Avoid duplicates if currentBranch already included
-					if next == walker {
-						return nil, fmt.Errorf("cycle detected at branch '%s' while descending lineage", walker)
-					}
-					fullStack = append(fullStack, next)
-					walker = next
-					if len(fullStack) > 100 { // safety
-						return nil, fmt.Errorf("stack reconstruction exceeded 100 branches (descending)")
-					}
-				}
-				// Finished lineage reconstruction.
-				break
-			} else {
-				// Non-base branch with multiple children - violates linear stack assumption
-				return nil, fmt.Errorf("non-base branch '%s' has multiple children %v, which violates linear stack structure. Only base branches (%v) can have multiple children", current, children, []string{"main", "master", "develop"})
-			}
+			return nil, fmt.Errorf("branch '%s' has multiple children %v; checkout one child branch to continue", last, children)
 		}
-		nextChild := children[0]
-
-		if visited[nextChild] {
-			return nil, fmt.Errorf("cycle detected in stack tracking near branch '%s'", nextChild)
-		}
-
-		fullStack = append(fullStack, nextChild)
-		visited[nextChild] = true
-		current = nextChild
-
-		if len(fullStack) > 100 { // Safety break
+		next := children[0]
+		fullStack = append(fullStack, next)
+		if len(fullStack) > 100 {
 			return nil, fmt.Errorf("stack reconstruction exceeded 100 branches, aborting")
 		}
 	}
 
 	slog.Debug("Full ordered stack identified:", "stack", fullStack)
-
 	return &StackInfo{
 		CurrentBranch: currentBranch,
 		BaseBranch:    baseBranch,
@@ -191,7 +111,7 @@ func GetStackInfo() (*StackInfo, error) {
 	}, nil
 }
 
-// GetAvailableStacksFromBase returns all available stacks that start from the given base branch
+// GetAvailableStacksFromBase returns all available stacks that start from the given branch.
 func GetAvailableStacksFromBase(baseBranch string) ([][]string, error) {
 	parentMap, err := GetAllSocleParents()
 	if err != nil {
@@ -201,7 +121,7 @@ func GetAvailableStacksFromBase(baseBranch string) ([][]string, error) {
 	childMap := BuildChildMap(parentMap)
 	children, found := childMap[baseBranch]
 	if !found || len(children) == 0 {
-		return nil, fmt.Errorf("no stacks found starting from base branch '%s'", baseBranch)
+		return nil, fmt.Errorf("no stacks found starting from branch '%s'", baseBranch)
 	}
 
 	var stacks [][]string

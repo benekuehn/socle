@@ -178,3 +178,34 @@ func initializeCobraAppForTest() (*cobra.Command, error) {
 	testRootCmd.Flags().AddFlagSet(trackCmd.Flags())
 	return testRootCmd, nil
 }
+
+// setupRepoWithLayeredBranching creates main -> feature-a with two children feature-b and feature-c.
+func setupRepoWithLayeredBranching(t *testing.T) (repoPath string, cleanup func()) {
+	t.Helper()
+	repoPath, cleanup = testutils.SetupGitRepo(t)
+
+	testutils.RunCommand(t, repoPath, "git", "checkout", "main")
+	testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature-a")
+	writeFile(t, repoPath, "feature-a.txt", "feature-a content")
+	testutils.RunCommand(t, repoPath, "git", "add", ".")
+	testutils.RunCommand(t, repoPath, "git", "commit", "-m", "feat: commit on feature-a")
+	err := runSoCommand(t, "track", "--test-parent=main")
+	require.NoError(t, err, "Setup: failed to track feature-a")
+
+	testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature-b")
+	writeFile(t, repoPath, "feature-b.txt", "feature-b content")
+	testutils.RunCommand(t, repoPath, "git", "add", ".")
+	testutils.RunCommand(t, repoPath, "git", "commit", "-m", "feat: commit on feature-b")
+	err = runSoCommand(t, "track", "--test-parent=feature-a")
+	require.NoError(t, err, "Setup: failed to track feature-b")
+
+	testutils.RunCommand(t, repoPath, "git", "checkout", "feature-a")
+	testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature-c")
+	writeFile(t, repoPath, "feature-c.txt", "feature-c content")
+	testutils.RunCommand(t, repoPath, "git", "add", ".")
+	testutils.RunCommand(t, repoPath, "git", "commit", "-m", "feat: commit on feature-c")
+	err = runSoCommand(t, "track", "--test-parent=feature-a")
+	require.NoError(t, err, "Setup: failed to track feature-c")
+
+	return repoPath, cleanup
+}

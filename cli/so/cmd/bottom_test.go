@@ -183,7 +183,7 @@ func TestBottomCommand(t *testing.T) {
 		testutils.RunCommand(t, repoPath, "git", "checkout", "main")
 		_, _, err := runSoCommandWithOutput(t, "--non-interactive", "bottom")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "multiple stacks found from base branch")
+		assert.Contains(t, err.Error(), "multiple stacks found from branch")
 	})
 
 }
