@@ -26,6 +26,7 @@ Process:
 
 		noFetch, _ := cmd.Flags().GetBool("test-no-fetch")
 		noSurvey, _ := cmd.Flags().GetBool("test-no-survey")
+		noRestack, _ := cmd.Flags().GetBool("no-restack")
 
 		runner := &syncCmdRunner{
 			logger:         logger,
@@ -35,7 +36,7 @@ Process:
 			nonInteractive: nonInteractive,
 
 			// Populate config from flags
-			doRestack: !cmd.Flag("no-restack").Changed,
+			doRestack: !noRestack,
 			noFetch:   noFetch,
 			noSurvey:  noSurvey,
 		}

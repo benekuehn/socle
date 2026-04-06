@@ -194,10 +194,13 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 		surveyOpts := survey.WithStdio(r.stdin.(*os.File), r.stderr.(*os.File), r.stderr.(*os.File))
 		err := survey.AskOne(prompt, &confirmPush, surveyOpts)
 		if err != nil {
-			if err.Error() == "interrupt" {
-				return ui.HandleSurveyInterrupt(err, "Push cancelled.")
+			if handledErr := ui.HandleSurveyInterrupt(err, "Push cancelled."); handledErr != nil {
+				if errors.Is(handledErr, ui.ErrPromptInterrupted) {
+					doPush = false
+					return nil
+				}
+				_, _ = fmt.Fprintf(r.stderr, "Push prompt failed: %v. Skipping push.\n", handledErr)
 			}
-			_, _ = fmt.Fprintf(r.stderr, "Push prompt failed: %v. Skipping push.\n", err)
 		}
 		doPush = confirmPush
 	}
