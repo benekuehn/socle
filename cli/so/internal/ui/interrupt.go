@@ -17,7 +17,7 @@ var ErrPromptInterrupted = errors.New("prompt interrupted")
 func HandleSurveyInterrupt(err error, message string) error {
 	if errors.Is(err, terminal.InterruptErr) {
 		_, _ = fmt.Fprintln(os.Stderr, message)
-		return fmt.Errorf("%w: %s", ErrPromptInterrupted, message)
+		return ErrPromptInterrupted
 	}
 	if errors.Is(err, io.EOF) {
 		return fmt.Errorf("prompt failed: %w (received io.EOF, potentially non-interactive environment?)", err)

@@ -197,9 +197,10 @@ func (r *restackCmdRunner) run(cmd *cobra.Command) error {
 			if handledErr := ui.HandleSurveyInterrupt(err, "Push cancelled."); handledErr != nil {
 				if errors.Is(handledErr, ui.ErrPromptInterrupted) {
 					doPush = false
-					return nil
+					_, _ = fmt.Fprintln(r.stdout, ui.Colors.InfoStyle.Render("Skipping push after prompt cancellation."))
+				} else {
+					_, _ = fmt.Fprintf(r.stderr, "Push prompt failed: %v. Skipping push.\n", handledErr)
 				}
-				_, _ = fmt.Fprintf(r.stderr, "Push prompt failed: %v. Skipping push.\n", handledErr)
 			}
 		}
 		doPush = confirmPush
