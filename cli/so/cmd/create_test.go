@@ -2,6 +2,8 @@
 package cmd
 
 import (
+	"bytes"
+	"os"
 	"testing"
 
 	"github.com/benekuehn/socle/cli/so/internal/git"
@@ -141,4 +143,19 @@ func TestCreateCommand(t *testing.T) {
 	// TODO: Add test for 'add -p' but staging nothing (--test-addp-empty)
 	// TODO: Add test for invalid branch name
 	// TODO: Add test for creating off base branch directly
+}
+
+func TestHasInteractiveSurveyTerminal(t *testing.T) {
+	t.Run("Returns false for non-file stdio", func(t *testing.T) {
+		assert.False(t, hasInteractiveSurveyTerminal(bytes.NewBufferString(""), bytes.NewBufferString("")))
+	})
+
+	t.Run("Returns false for non-terminal file descriptors", func(t *testing.T) {
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+		defer r.Close()
+		defer w.Close()
+
+		assert.False(t, hasInteractiveSurveyTerminal(r, w))
+	})
 }

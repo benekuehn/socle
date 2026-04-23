@@ -9,6 +9,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/ui"
+	"github.com/mattn/go-isatty"
 )
 
 type createCmdRunner struct {
@@ -30,6 +31,12 @@ type createCmdRunner struct {
 }
 
 func (r *createCmdRunner) run() error {
+	effectiveNonInteractive := r.nonInteractive
+	if !effectiveNonInteractive && !hasInteractiveSurveyTerminal(r.stdin, r.stderr) {
+		effectiveNonInteractive = true
+		_, _ = fmt.Fprintln(r.stdout, ui.Colors.InfoStyle.Render("No interactive terminal detected; running create in non-interactive mode."))
+	}
+
 	// 1. Get current branch info
 	parentBranch, err := git.GetCurrentBranch()
 	if err != nil {
@@ -91,7 +98,7 @@ func (r *createCmdRunner) run() error {
 		newBranchName = r.testBranchName
 	} else if r.branchNameArg != "" {
 		newBranchName = r.branchNameArg
-	} else if r.nonInteractive {
+	} else if effectiveNonInteractive {
 		return fmt.Errorf("branch name is required in non-interactive mode; pass it as an argument")
 	} else {
 		prompt := &survey.Input{Message: "Enter name for the new branch:"}
@@ -125,7 +132,7 @@ func (r *createCmdRunner) run() error {
 	if hasChanges {
 		if r.createMessage != "" {
 			commitMsg = r.createMessage
-		} else if r.nonInteractive {
+		} else if effectiveNonInteractive {
 			return fmt.Errorf("commit message is required in non-interactive mode when uncommitted changes exist; pass -m")
 		} else {
 			prompt := &survey.Input{Message: "Enter commit message for current changes:"}
@@ -169,7 +176,7 @@ func (r *createCmdRunner) run() error {
 		if r.testStageChoice != "" {
 			r.logger.Debug("Using stage choice from test flag", "testStageChoice", r.testStageChoice)
 			stageChoice = r.testStageChoice
-		} else if r.nonInteractive {
+		} else if effectiveNonInteractive {
 			stageChoice = "add-all"
 		} else {
 			prompt := &survey.Select{
@@ -274,4 +281,17 @@ func (r *createCmdRunner) run() error {
 	_, _ = fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render(finalMessage))
 
 	return nil
+}
+
+func hasInteractiveSurveyTerminal(stdin io.Reader, stderr io.Writer) bool {
+	stdinFile, ok := stdin.(*os.File)
+	if !ok {
+		return false
+	}
+	stderrFile, ok := stderr.(*os.File)
+	if !ok {
+		return false
+	}
+
+	return isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stderrFile.Fd())
 }
