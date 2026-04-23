@@ -232,11 +232,11 @@ func promptForPRDetails(cmd *cobra.Command, branch, parent string, opts SubmitBr
 
 // handleSurveyInterrupt checks for survey's interrupt error.
 func handleSurveyInterrupt(err error, message string) error {
-	if err == terminal.InterruptErr {
+	if errors.Is(err, terminal.InterruptErr) {
 		fmt.Println(ui.Colors.WarningStyle.Render(message))
 		return ErrSubmitCancelled // Return specific error type for actions
 	}
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return fmt.Errorf("prompt failed: %w (received io.EOF, potentially non-interactive environment?)", err)
 	}
 	return fmt.Errorf("prompt failed: %w", err)
@@ -305,10 +305,17 @@ func EnsureStackComment(ctx context.Context, ghClient ClientInterface, branch st
 					accumulatedError = fmt.Errorf("%w; %s", accumulatedError, warnMsg)
 				}
 			}
-		} else if storedCommentID > 0 && foundCommentID == 0 {
-			slog.Warn("Stored comment ID not found on GitHub. Unsetting local and attempting creation.", "storedCommentID", storedCommentID)
-			if unsetErr := git.UnsetStoredCommentID(branch); unsetErr != nil {
-				warnMsg := fmt.Sprintf("failed to unset stale comment ID %d locally for branch '%s': %v", storedCommentID, branch, unsetErr)
+		} else if storedCommentID > 0 && foundCommentID != storedCommentID {
+			warnMsg := fmt.Sprintf("stored comment ID %d does not match found marker comment ID %d for branch '%s'; updating local config", storedCommentID, foundCommentID, branch)
+			slog.Warn(warnMsg)
+			if accumulatedError == nil {
+				accumulatedError = errors.New(warnMsg)
+			} else {
+				accumulatedError = fmt.Errorf("%w; %s", accumulatedError, warnMsg)
+			}
+
+			if setErr := git.SetStoredCommentID(branch, foundCommentID); setErr != nil {
+				warnMsg = fmt.Sprintf("failed to update stored comment ID to %d for branch '%s': %v", foundCommentID, branch, setErr)
 				slog.Warn(warnMsg)
 				if accumulatedError == nil {
 					accumulatedError = errors.New(warnMsg)

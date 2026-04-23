@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 
 	"github.com/benekuehn/socle/cli/so/internal/git"
+	"github.com/benekuehn/socle/cli/so/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -58,6 +60,9 @@ var rootCmd = &cobra.Command{
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
+		if errors.Is(err, ui.ErrPromptInterrupted) {
+			os.Exit(0)
+		}
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err) // More user-friendly error
 		os.Exit(1)
 	}
