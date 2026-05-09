@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
+	"os"
 	"strings"
 	"testing"
 
@@ -42,6 +45,48 @@ func TestTrackCommand(t *testing.T) {
 		}
 		if base != "main" {
 			t.Errorf("Expected socle-base to be 'main', but got '%s'", base)
+		}
+	})
+
+	t.Run("Track auto-selects parent when no TTY is available", func(t *testing.T) {
+		repoPath, cleanup := testutils.SetupGitRepo(t)
+		defer cleanup()
+
+		testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature/a")
+
+		originalNonInteractive := nonInteractive
+		nonInteractive = false
+		t.Cleanup(func() { nonInteractive = originalNonInteractive })
+
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		runner := &trackCmdRunner{
+			ctx:    context.Background(),
+			logger: slog.New(slog.NewTextHandler(os.Stderr, nil)),
+			stdout: &stdout,
+			stderr: &stderr,
+			stdin:  strings.NewReader(""),
+		}
+
+		err := runner.run()
+		if err != nil {
+			t.Fatalf("track runner failed in non-tty mode: %v", err)
+		}
+
+		parent, err := git.GetGitConfig("branch.feature/a.socle-parent")
+		if err != nil {
+			t.Fatalf("failed to get socle-parent config: %v", err)
+		}
+		if parent != "main" {
+			t.Errorf("expected auto-selected parent to be 'main', got '%s'", parent)
+		}
+
+		base, err := git.GetGitConfig("branch.feature/a.socle-base")
+		if err != nil {
+			t.Fatalf("failed to get socle-base config: %v", err)
+		}
+		if base != "main" {
+			t.Errorf("expected auto-selected base to be 'main', got '%s'", base)
 		}
 	})
 
