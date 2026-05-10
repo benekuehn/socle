@@ -91,4 +91,5 @@ jobs:
                   args: release --clean
                   workdir: cli/so
               env:
-                  GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+                  GITHUB_TOKEN: ${{ github.token }}
+                  HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
