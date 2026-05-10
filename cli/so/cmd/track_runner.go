@@ -30,6 +30,12 @@ type trackCmdRunner struct {
 }
 
 func (r *trackCmdRunner) run() error {
+	effectiveNonInteractive := nonInteractive
+	if !effectiveNonInteractive && !hasInteractiveSurveyTerminal(r.stdin, r.stderr) {
+		effectiveNonInteractive = true
+		_, _ = fmt.Fprintln(r.stdout, ui.Colors.InfoStyle.Render("No interactive terminal detected; auto-selecting a parent branch for track."))
+	}
+
 	currentBranch, err := git.GetCurrentBranch()
 	if err != nil {
 		return fmt.Errorf("failed to get current branch: %w", err)
@@ -121,19 +127,29 @@ func (r *trackCmdRunner) run() error {
 		}
 		selectedParent = r.testSelectedParent
 	} else {
-		// Use runner's stdio
-		surveyOpts := survey.WithStdio(r.stdin.(*os.File), r.stderr.(*os.File), r.stderr.(*os.File))
-		r.logger.Debug("Prompting user for parent branch")
-		prompt := &survey.Select{Message: fmt.Sprintf("Select the parent branch for '%s':", currentBranch), Options: potentialParents}
-		if defaultParent != "" {
-			prompt.Default = defaultParent
+		if effectiveNonInteractive {
+			if defaultParent != "" {
+				selectedParent = defaultParent
+			} else {
+				selectedParent = potentialParents[0]
+			}
+			_, _ = fmt.Fprintf(r.stdout, "Using parent '%s' in non-interactive mode.\n", selectedParent)
+			r.logger.Debug("Parent selected in non-interactive mode", "selectedParent", selectedParent, "defaultParent", defaultParent)
+		} else {
+			// Use runner's stdio
+			surveyOpts := survey.WithStdio(r.stdin.(*os.File), r.stderr.(*os.File), r.stderr.(*os.File))
+			r.logger.Debug("Prompting user for parent branch")
+			prompt := &survey.Select{Message: fmt.Sprintf("Select the parent branch for '%s':", currentBranch), Options: potentialParents}
+			if defaultParent != "" {
+				prompt.Default = defaultParent
+			}
+			err := survey.AskOne(prompt, &selectedParent, surveyOpts)
+			if err != nil {
+				// Use ui.HandleSurveyInterrupt which should be in internal/ui
+				return ui.HandleSurveyInterrupt(err, "Track command cancelled.")
+			}
+			r.logger.Debug("Parent selected via prompt", "selectedParent", selectedParent)
 		}
-		err := survey.AskOne(prompt, &selectedParent, surveyOpts)
-		if err != nil {
-			// Use ui.HandleSurveyInterrupt which should be in internal/ui
-			return ui.HandleSurveyInterrupt(err, "Track command cancelled.")
-		}
-		r.logger.Debug("Parent selected via prompt", "selectedParent", selectedParent)
 	}
 
 	// 5. Determine and store base branch
