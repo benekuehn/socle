@@ -7,7 +7,7 @@ import (
 	"github.com/benekuehn/socle/cli/so/internal/gh"
 	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/testutils"
-	"github.com/google/go-github/v71/github"
+	"github.com/google/go-github/v83/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
