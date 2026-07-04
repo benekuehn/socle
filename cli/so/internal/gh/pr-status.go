@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http" // Import net/http for status code checking
 
-	"github.com/google/go-github/v88/github" // Use correct version
+	"github.com/google/go-github/v83/github" // Use correct version
 )
 
 // Define constants for PR statuses

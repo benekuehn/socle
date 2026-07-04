@@ -153,8 +153,8 @@ func TestHasInteractiveSurveyTerminal(t *testing.T) {
 	t.Run("Returns false for non-terminal file descriptors", func(t *testing.T) {
 		r, w, err := os.Pipe()
 		require.NoError(t, err)
-		defer r.Close()
-		defer w.Close()
+		defer func() { require.NoError(t, r.Close()) }()
+		defer func() { require.NoError(t, w.Close()) }()
 
 		assert.False(t, hasInteractiveSurveyTerminal(r, w))
 	})

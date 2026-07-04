@@ -294,7 +294,7 @@ func renderStackCommentBody(stack []string, currentBranch string, stackCommentMa
 	for i := len(stack) - 1; i >= 0; i-- {
 		branchName := stack[i]
 		if i == 0 {
-			sb.WriteString(fmt.Sprintf("* `%s` (base)\n", branchName))
+			fmt.Fprintf(&sb, "* `%s` (base)\n", branchName)
 			continue
 		}
 		prInfo, ok := prInfoMap[branchName]
@@ -304,15 +304,15 @@ func renderStackCommentBody(stack []string, currentBranch string, stackCommentMa
 		}
 
 		if ok {
-			sb.WriteString(fmt.Sprintf("* **#%d** %s\n",
+			fmt.Fprintf(&sb, "* **#%d** %s\n",
 				prInfo.Number,
 				indicator,
-			))
+			)
 		} else {
-			sb.WriteString(fmt.Sprintf("* `%s` (Coming soon 🤞)%s\n",
+			fmt.Fprintf(&sb, "* `%s` (Coming soon 🤞)%s\n",
 				branchName,
 				indicator,
-			))
+			)
 		}
 	}
 

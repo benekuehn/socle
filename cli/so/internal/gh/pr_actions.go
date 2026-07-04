@@ -14,7 +14,7 @@ import (
 
 	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/ui"
-	"github.com/google/go-github/v88/github"
+	"github.com/google/go-github/v83/github"
 	"github.com/spf13/cobra"
 )
 
