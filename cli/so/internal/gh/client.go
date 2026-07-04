@@ -15,7 +15,7 @@ import (
 	"time"
 
 	cmdexec "github.com/benekuehn/socle/cli/so/internal/exec"
-	"github.com/google/go-github/v71/github"
+	"github.com/google/go-github/v88/github"
 	"golang.org/x/oauth2"
 )
 
