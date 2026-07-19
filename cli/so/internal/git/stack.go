@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 )
 
 // StackInfo holds all information about a branch stack
@@ -104,11 +105,12 @@ func GetStackInfo() (*StackInfo, error) {
 	// 6. Determine the full ordered stack
 	slog.Debug("Determining full ordered stack...")
 
-	// Reconstruct the lineage from the base upwards
-	fullStack := []string{baseBranch}
-	current := baseBranch
+	fullStack := append([]string(nil), currentStack...)
+	current := currentBranch
 	visited := make(map[string]bool)
-	visited[current] = true
+	for _, branch := range fullStack {
+		visited[branch] = true
+	}
 
 	for {
 		children, found := childMap[current]
@@ -117,52 +119,11 @@ func GetStackInfo() (*StackInfo, error) {
 		}
 
 		if len(children) > 1 {
-			if knownBases[current] {
-				// Base branch with multiple stacks.
-				// If we are CURRENTLY on the base branch itself, we cannot provide a single linear FullStack.
-				// If we are NOT on the base (i.e., navigating inside one lineage), we can still produce a FullStack
-				// by using currentStack (base->...->currentBranch) and then extending downward from currentBranch.
-				if currentBranch == current { // we are ON the base branch
-					slog.Debug("Base branch with multiple stacks detected (on base)", "base", current, "children", children)
-					return &StackInfo{
-						CurrentBranch: currentBranch,
-						BaseBranch:    baseBranch,
-						CurrentStack:  currentStack,
-						FullStack:     nil, // Signal that multiple stacks exist from base context
-						ParentMap:     parentMap,
-						ChildMap:      childMap,
-					}, nil
-				}
-				// We are inside lineage: Build full stack using known path to currentBranch then descend.
-				slog.Debug("Inside multi-stack lineage; reconstructing full lineage for current branch", "currentBranch", currentBranch)
-				fullStack = append([]string{}, currentStack...) // base->...->currentBranch
-				// Descend from currentBranch to tip
-				walker := currentBranch
-				for {
-					childList, foundChild := childMap[walker]
-					if !foundChild || len(childList) == 0 {
-						break
-					}
-					if len(childList) > 1 {
-						return nil, fmt.Errorf("non-base branch '%s' has multiple children %v, violating linear lineage assumption", walker, childList)
-					}
-					next := childList[0]
-					// Avoid duplicates if currentBranch already included
-					if next == walker {
-						return nil, fmt.Errorf("cycle detected at branch '%s' while descending lineage", walker)
-					}
-					fullStack = append(fullStack, next)
-					walker = next
-					if len(fullStack) > 100 { // safety
-						return nil, fmt.Errorf("stack reconstruction exceeded 100 branches (descending)")
-					}
-				}
-				// Finished lineage reconstruction.
-				break
-			} else {
-				// Non-base branch with multiple children - violates linear stack assumption
-				return nil, fmt.Errorf("non-base branch '%s' has multiple children %v, which violates linear stack structure. Only base branches (%v) can have multiple children", current, children, []string{"main", "master", "develop"})
+			if current == baseBranch {
+				return &StackInfo{CurrentBranch: currentBranch, BaseBranch: baseBranch, CurrentStack: currentStack, ParentMap: parentMap, ChildMap: childMap}, nil
 			}
+			sort.Strings(children)
+			return nil, fmt.Errorf("ambiguous stack continuation from branch '%s': tracked children %v", current, children)
 		}
 		nextChild := children[0]
 
