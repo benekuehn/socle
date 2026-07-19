@@ -23,6 +23,7 @@ and creates or updates corresponding GitHub Pull Requests.
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger := slog.Default()
+		forcePush, noPush, draft := submitBooleanOptions(cmd)
 
 		body, _ := cmd.Flags().GetString("body")
 		bodyFile, _ := cmd.Flags().GetString("body-file")
@@ -36,9 +37,6 @@ and creates or updates corresponding GitHub Pull Requests.
 		}
 
 		title, _ := cmd.Flags().GetString("title")
-		forcePush, _ := cmd.Flags().GetBool("force")
-		noPush, _ := cmd.Flags().GetBool("no-push")
-		noDraft, _ := cmd.Flags().GetBool("no-draft")
 
 		runner := &submitCmdRunner{
 			logger:         logger,
@@ -49,7 +47,7 @@ and creates or updates corresponding GitHub Pull Requests.
 			// Populate config from flags
 			forcePush:   forcePush,
 			noPush:      noPush,
-			draft:       !noDraft,
+			draft:       draft,
 			submitTitle: title,
 			submitBody:  body,
 			// --- TESTING FLAGS ---
@@ -60,6 +58,13 @@ and creates or updates corresponding GitHub Pull Requests.
 
 		return runner.run(context.Background(), cmd)
 	},
+}
+
+func submitBooleanOptions(cmd *cobra.Command) (forcePush, noPush, draft bool) {
+	forcePush, _ = cmd.Flags().GetBool("force")
+	noPush, _ = cmd.Flags().GetBool("no-push")
+	noDraft, _ := cmd.Flags().GetBool("no-draft")
+	return forcePush, noPush, !noDraft
 }
 
 func init() {

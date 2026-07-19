@@ -26,6 +26,7 @@ Process:
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger := slog.Default()
+		noFetch, forcePush, noPush := restackBooleanOptions(cmd)
 
 		runner := &restackCmdRunner{
 			logger:         logger,
@@ -35,13 +36,20 @@ Process:
 			nonInteractive: nonInteractive,
 
 			// Populate config from flags
-			noFetch:   cmd.Flag("no-fetch").Changed,
-			forcePush: cmd.Flag("force-push").Changed,
-			noPush:    cmd.Flag("no-push").Changed,
+			noFetch:   noFetch,
+			forcePush: forcePush,
+			noPush:    noPush,
 		}
 
 		return runner.run(cmd)
 	},
+}
+
+func restackBooleanOptions(cmd *cobra.Command) (noFetch, forcePush, noPush bool) {
+	noFetch, _ = cmd.Flags().GetBool("no-fetch")
+	forcePush, _ = cmd.Flags().GetBool("force-push")
+	noPush, _ = cmd.Flags().GetBool("no-push")
+	return
 }
 
 func init() {
