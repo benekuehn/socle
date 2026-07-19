@@ -246,6 +246,7 @@ func (r *createCmdRunner) run() error {
 					_, _ = fmt.Fprint(r.stderr, ui.Colors.FailureStyle.Render("Commit failed (hooks?). Aborting.\\n"))
 					return fmt.Errorf("failed to commit changes: %w", err)
 				}
+				cleanupNeeded = false
 				r.logger.Debug("Changes committed successfully..")
 				commitOccurred = true
 			} else {

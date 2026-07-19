@@ -4,6 +4,7 @@ package cmd
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/benekuehn/socle/cli/so/internal/git"
@@ -87,6 +88,36 @@ func TestCreateCommand(t *testing.T) {
 		// Check file content
 		content := readFile(t, repoPath, "newfile.txt")
 		assert.Equal(t, "content for b", content)
+	})
+
+	t.Run("Preserves committed branch when metadata write fails", func(t *testing.T) {
+		repoPath, cleanup := testutils.SetupGitRepo(t)
+		defer cleanup()
+
+		testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature/a")
+		require.NoError(t, runSoCommand(t, "track", "--parent=main"))
+		writeFile(t, repoPath, "newfile.txt", "content for b")
+		require.NoError(t, os.WriteFile(filepath.Join(repoPath, ".git", "config.lock"), nil, 0600))
+		t.Cleanup(func() { _ = os.Remove(filepath.Join(repoPath, ".git", "config.lock")) })
+
+		err := runSoCommand(t, "create", "feature/b", "-m", "Add newfile", "--test-stage-choice=add-all")
+		require.Error(t, err)
+
+		exists, err := git.BranchExists("feature/b")
+		require.NoError(t, err)
+		assert.True(t, exists)
+		branchOID, err := git.GetCurrentBranchCommit("feature/b")
+		require.NoError(t, err)
+		parentOID, err := git.GetCurrentBranchCommit("feature/a")
+		require.NoError(t, err)
+		assert.NotEqual(t, parentOID, branchOID)
+		message, err := git.GetFirstCommitSubject("feature/a", "feature/b")
+		require.NoError(t, err)
+		assert.Equal(t, "Add newfile", message)
+		assert.Contains(t, testutils.RunCommand(t, repoPath, "git", "show", "--format=", "--name-only", "feature/b"), "newfile.txt")
+		currentBranch, err := git.GetCurrentBranch()
+		require.NoError(t, err)
+		assert.Equal(t, "feature/b", currentBranch)
 	})
 
 	t.Run("Create branch fails if parent not tracked", func(t *testing.T) {
