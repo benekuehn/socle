@@ -57,6 +57,7 @@ func TestSyncCommand_ReparentedBranchKeepsRemoteTracking(t *testing.T) {
 
 	mockClient := gh.NewMockClient()
 	mockClient.PRStatuses[101] = gh.PRStatusMerged
+	mockClient.On("FindOpenPullRequestForBranch", "feature-b").Return(nil, nil)
 
 	originalCreateGHClient := gh.CreateClient
 	gh.CreateClient = func(ctx context.Context, owner, repo string) (gh.ClientInterface, error) {
