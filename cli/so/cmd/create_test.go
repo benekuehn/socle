@@ -19,7 +19,7 @@ func TestCreateCommand(t *testing.T) {
 
 		// Setup: Track main, create feature/a and track it
 		testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature/a")
-		err := runSoCommand(t, "track", "--test-parent=main") // Using helper from track_test.go setup
+		err := runSoCommand(t, "track", "--parent=main") // Using helper from track_test.go setup
 		require.NoError(t, err, "Setup: failed to track feature/a")
 
 		// Action: Create feature/b
@@ -56,7 +56,7 @@ func TestCreateCommand(t *testing.T) {
 
 		// Setup: Track main, create feature/a, track it, make changes
 		testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature/a")
-		err := runSoCommand(t, "track", "--test-parent=main")
+		err := runSoCommand(t, "track", "--parent=main")
 		require.NoError(t, err)
 		writeFile(t, repoPath, "newfile.txt", "content for b")
 		testutils.RunCommand(t, repoPath, "git", "add", "newfile.txt") // Stage changes beforehand
@@ -111,7 +111,7 @@ func TestCreateCommand(t *testing.T) {
 
 		//Setup: Track main, create feature/a and track it, create feature/b manually
 		testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature/a")
-		err := runSoCommand(t, "track", "--test-parent=main")
+		err := runSoCommand(t, "track", "--parent=main")
 		require.NoError(t, err)
 		testutils.RunCommand(t, repoPath, "git", "branch", "feature/b")   // Create feature/b
 		testutils.RunCommand(t, repoPath, "git", "checkout", "feature/a") // Be on parent
@@ -130,7 +130,7 @@ func TestCreateCommand(t *testing.T) {
 		defer cleanup()
 
 		testutils.RunCommand(t, repoPath, "git", "checkout", "-b", "feature/a")
-		err := runSoCommand(t, "track", "--test-parent=main")
+		err := runSoCommand(t, "track", "--parent=main")
 		require.NoError(t, err)
 
 		err = runSoCommand(t, "--non-interactive", "create")
