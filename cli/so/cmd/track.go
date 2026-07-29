@@ -28,22 +28,20 @@ within a stack. This allows 'socle show' to display the specific stack you are o
 			stderr: cmd.ErrOrStderr(),
 			stdin:  os.Stdin,
 
-			discoverRemote:     discoverRemote,
-			testSelectedParent: cmd.Flag("test-parent").Value.String(),
-			testAssumeBase:     cmd.Flag("test-base").Value.String(),
+			discoverRemote: discoverRemote,
+			branch:         cmd.Flag("branch").Value.String(),
+			parent:         cmd.Flag("parent").Value.String(),
+			base:           cmd.Flag("base").Value.String(),
 		}
 
 		return runner.run()
 	},
 }
 
-const defaultBaseBranch = "main"
-
 func init() {
 	AddCommand(trackCmd)
-	trackCmd.Flags().String("test-parent", "", "Parent branch to select (for testing only)")
-	trackCmd.Flags().String("test-base", "", "Base branch to assume if parent is untracked (for testing only)")
+	trackCmd.Flags().String("branch", "", "Child branch to track (defaults to the current branch)")
+	trackCmd.Flags().String("parent", "", "Parent branch to track")
+	trackCmd.Flags().String("base", "", "Expected stack base (validated against the parent's inherited base)")
 	trackCmd.Flags().BoolP("discover", "d", false, "Discover remote metadata (e.g. existing pull requests) while tracking")
-	_ = trackCmd.Flags().MarkHidden("test-parent")
-	_ = trackCmd.Flags().MarkHidden("test-base")
 }

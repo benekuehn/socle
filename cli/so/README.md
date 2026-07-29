@@ -253,8 +253,11 @@ so track [flags]
 ```
 
 ```
-  -d, --discover   Discover remote metadata (e.g. existing pull requests) while tracking
-  -h, --help       help for track
+      --base string     Expected stack base (validated against the parent's inherited base)
+      --branch string   Child branch to track (defaults to the current branch)
+  -d, --discover        Discover remote metadata (e.g. existing pull requests) while tracking
+  -h, --help            help for track
+      --parent string   Parent branch to track
 ```
 
 ### Options inherited from parent commands

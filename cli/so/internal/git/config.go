@@ -29,12 +29,9 @@ func GetGitConfig(key string) (string, error) {
 	return "", fmt.Errorf("failed to get git config '%s': %w", key, err) // <-- Use %w here too
 }
 
-// SetGitConfig sets (or adds) a git config key-value pair.
-// Uses --add to avoid deleting other values if the key somehow exists multiple times,
-// though for our usage, a simple set would likely be fine too.
+// SetGitConfig replaces a local scalar config value, including any accidental duplicates.
 func SetGitConfig(key, value string) error {
-	// Using --local ensures we write to .git/config, not global or system
-	_, err := RunGitCommand("config", "--local", "--add", key, value)
+	_, err := RunGitCommand("config", "--local", "--replace-all", key, value)
 	return err
 }
 

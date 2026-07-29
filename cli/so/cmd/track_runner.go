@@ -7,222 +7,226 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"sort"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/benekuehn/socle/cli/so/internal/gh"
 	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/ui"
-	// Assuming HandleSurveyInterrupt is there or moved to ui
 )
 
 type trackCmdRunner struct {
-	ctx    context.Context
-	logger *slog.Logger
-	stdout io.Writer
-	stderr io.Writer
-	stdin  io.Reader
-
+	ctx            context.Context
+	logger         *slog.Logger
+	stdout         io.Writer
+	stderr         io.Writer
+	stdin          io.Reader
 	discoverRemote bool
-
-	// Test flags
-	testSelectedParent string
-	testAssumeBase     string
+	branch         string
+	parent         string
+	base           string
 }
 
 func (r *trackCmdRunner) run() error {
-	effectiveNonInteractive := nonInteractive
-	if !effectiveNonInteractive && !hasInteractiveSurveyTerminal(r.stdin, r.stderr) {
-		effectiveNonInteractive = true
-		_, _ = fmt.Fprintln(r.stdout, ui.Colors.InfoStyle.Render("No interactive terminal detected; auto-selecting a parent branch for track."))
-	}
-
-	currentBranch, err := git.GetCurrentBranch()
-	if err != nil {
-		return fmt.Errorf("failed to get current branch: %w", err)
-	}
-	// Basic check: Don't track base branches like main/master/develop
-	knownBases := map[string]bool{"main": true, "master": true, "develop": true} // TODO: Configurable
-	if knownBases[currentBranch] {
-		return fmt.Errorf("cannot track a base branch ('%s') itself", currentBranch)
-	}
-
-	// 2. Check if already tracked
-	parentConfigKey := fmt.Sprintf("branch.%s.socle-parent", currentBranch)
-	existingParent, errGetParent := git.GetGitConfig(parentConfigKey)
-	if errGetParent == nil && existingParent != "" {
-		baseConfigKey := fmt.Sprintf("branch.%s.socle-base", currentBranch)
-		existingBase, _ := git.GetGitConfig(baseConfigKey)
-		_, _ = fmt.Fprintf(r.stdout, "Branch '%s' is already tracked.\n", currentBranch)
-		_, _ = fmt.Fprintf(r.stdout, "  Parent: %s\n", existingParent)
-		_, _ = fmt.Fprintf(r.stdout, "  Base:   %s\n", existingBase)
-		return nil
-	} else if errGetParent != nil && !errors.Is(errGetParent, git.ErrConfigNotFound) {
-		return fmt.Errorf("failed to check tracking status for branch '%s': %w", currentBranch, errGetParent) // Use actual error
-	}
-
-	// 3. Get potential parent branches
-	allBranches, err := git.GetLocalBranches()
-	if err != nil {
-		return fmt.Errorf("failed to list local branches: %w", err)
-	}
-
-	potentialParents := []string{}
-	for _, b := range allBranches {
-		if b != currentBranch {
-			potentialParents = append(potentialParents, b)
+	child := r.branch
+	if child == "" {
+		var err error
+		child, err = git.GetCurrentBranch()
+		if err != nil {
+			return fmt.Errorf("failed to get current branch: %w", err)
 		}
 	}
-
-	if len(potentialParents) == 0 {
-		return fmt.Errorf("no other local branches found to select as a parent")
+	if err := requireLocalBranch("child", child); err != nil {
+		return err
+	}
+	knownTrunks := map[string]bool{"main": true, "master": true, "develop": true}
+	if knownTrunks[child] {
+		return fmt.Errorf("cannot track a base branch ('%s') itself", child)
+	}
+	parentKey := fmt.Sprintf("branch.%s.socle-parent", child)
+	baseKey := fmt.Sprintf("branch.%s.socle-base", child)
+	oldParent, err := configValue(parentKey)
+	if err != nil {
+		return fmt.Errorf("failed to read existing parent for '%s': %w", child, err)
+	}
+	oldBase, err := configValue(baseKey)
+	if err != nil {
+		return fmt.Errorf("failed to read existing base for '%s': %w", child, err)
 	}
 
+	parent := r.parent
+	if parent == "" && oldParent != "" {
+		parent = oldParent
+	}
 	var discovery *remoteDiscoveryResult
 	if r.discoverRemote {
 		var err error
-		discovery, err = r.discoverRemoteInfo(currentBranch)
+		discovery, err = r.discoverRemoteInfo(child)
 		if err != nil {
 			_, _ = fmt.Fprintln(r.stderr, ui.Colors.WarningStyle.Render(fmt.Sprintf("Remote discovery skipped: %v", err)))
 		} else if discovery != nil {
-			r.logger.Debug("Remote discovery successful", "remoteName", discovery.remoteName)
-			r.emitDiscoverySummary(currentBranch, discovery)
-			if discovery.prBase != "" && discovery.prBase != currentBranch {
-				found := false
-				for _, candidate := range potentialParents {
-					if candidate == discovery.prBase {
-						found = true
-						break
-					}
+			r.emitDiscoverySummary(child, discovery)
+		}
+	}
+	if parent == "" {
+		if nonInteractive || !hasInteractiveSurveyTerminal(r.stdin, r.stderr) {
+			return fmt.Errorf("parent is required without an interactive terminal; retry with: so track --branch %s --parent <parent> [--base <base>]", child)
+		}
+		branches, err := git.GetLocalBranches()
+		if err != nil {
+			return fmt.Errorf("failed to list local branches: %w", err)
+		}
+		choices := make([]string, 0, len(branches))
+		for _, b := range branches {
+			if b != child {
+				choices = append(choices, b)
+			}
+		}
+		sort.Strings(choices)
+		if len(choices) == 0 {
+			return fmt.Errorf("no other local branches are available as a parent")
+		}
+		prompt := &survey.Select{Message: fmt.Sprintf("Select the parent branch for '%s':", child), Options: choices}
+		if discovery != nil {
+			for _, b := range choices {
+				if b == discovery.prBase {
+					prompt.Default = b
 				}
-				if !found && knownBases[discovery.prBase] {
-					potentialParents = append(potentialParents, discovery.prBase)
-				}
 			}
+		}
+		err = survey.AskOne(prompt, &parent, survey.WithStdio(r.stdin.(*os.File), r.stderr.(*os.File), r.stderr.(*os.File)))
+		if err != nil {
+			return ui.HandleSurveyInterrupt(err, "Track command cancelled.")
+		}
+	}
+	if err := requireLocalBranch("parent", parent); err != nil {
+		return err
+	}
+	if child == parent {
+		return fmt.Errorf("child '%s' cannot track itself; retry with: so track --branch %s --parent <different-parent>", child, child)
+	}
+	if r.base != "" {
+		if err := requireLocalBranch("base", r.base); err != nil {
+			return err
+		}
+		if !knownTrunks[r.base] {
+			return fmt.Errorf("unsupported base branch '%s'; supported bases are main, master, and develop", r.base)
 		}
 	}
 
-	// 4. Prompt user to select parent
-	selectedParent := ""
-	var defaultParent string
-	if discovery != nil && discovery.prBase != "" && discovery.prBase != currentBranch {
-		for _, candidate := range potentialParents {
-			if candidate == discovery.prBase {
-				defaultParent = discovery.prBase
-				break
-			}
-		}
-	}
-
-	if r.testSelectedParent != "" {
-		r.logger.Debug("Using parent branch from test flag", "testParent", r.testSelectedParent)
-		found := false
-		for _, p := range potentialParents {
-			if p == r.testSelectedParent {
-				found = true
-				break
-			}
-		}
-		if !found && !knownBases[r.testSelectedParent] {
-			return fmt.Errorf("invalid test parent '%s': not found in potential parents %v or known bases", r.testSelectedParent, potentialParents)
-		}
-		selectedParent = r.testSelectedParent
-	} else {
-		if effectiveNonInteractive {
-			if defaultParent != "" {
-				selectedParent = defaultParent
-			} else {
-				selectedParent = potentialParents[0]
-			}
-			_, _ = fmt.Fprintf(r.stdout, "Using parent '%s' in non-interactive mode.\n", selectedParent)
-			r.logger.Debug("Parent selected in non-interactive mode", "selectedParent", selectedParent, "defaultParent", defaultParent)
-		} else {
-			// Use runner's stdio
-			surveyOpts := survey.WithStdio(r.stdin.(*os.File), r.stderr.(*os.File), r.stderr.(*os.File))
-			r.logger.Debug("Prompting user for parent branch")
-			prompt := &survey.Select{Message: fmt.Sprintf("Select the parent branch for '%s':", currentBranch), Options: potentialParents}
-			if defaultParent != "" {
-				prompt.Default = defaultParent
-			}
-			err := survey.AskOne(prompt, &selectedParent, surveyOpts)
-			if err != nil {
-				// Use ui.HandleSurveyInterrupt which should be in internal/ui
-				return ui.HandleSurveyInterrupt(err, "Track command cancelled.")
-			}
-			r.logger.Debug("Parent selected via prompt", "selectedParent", selectedParent)
-		}
-	}
-
-	// 5. Determine and store base branch
-	selectedBase := ""
-	if knownBases[selectedParent] {
-		selectedBase = selectedParent
-	} else {
-		parentBaseKey := fmt.Sprintf("branch.%s.socle-base", selectedParent)
-		inheritedBase, errGetBase := git.GetGitConfig(parentBaseKey)
-		if errGetBase == nil && inheritedBase != "" {
-			selectedBase = inheritedBase
-			r.logger.Debug("Inheriting base from tracked parent", "base", selectedBase, "parent", selectedParent)
-		} else if errors.Is(errGetBase, git.ErrConfigNotFound) {
-			r.logger.Debug("Selected parent is not tracked", "parent", selectedParent)
-			if r.testAssumeBase != "" {
-				r.logger.Debug("Using base from test flag", "testBase", r.testAssumeBase)
-				selectedBase = r.testAssumeBase
-			} else {
-				// Use runner's stdout/stderr
-				_, _ = fmt.Fprintln(r.stdout, ui.Colors.WarningStyle.Render(fmt.Sprintf(
-					"Warning: Parent branch '%s' is not tracked. Assuming stack base is '%s'.", selectedParent, defaultBaseBranch)))
-				_, _ = fmt.Fprintln(r.stdout, ui.Colors.WarningStyle.Render("Consider tracking the parent branch first for more accurate stack definitions."))
-				selectedBase = defaultBaseBranch
-			}
-		} else {
-			return fmt.Errorf("failed to check tracking base for parent branch '%s': %w", selectedParent, errGetBase)
-		}
-	}
-
-	if selectedBase == "" {
-		return fmt.Errorf("could not determine base branch for the stack")
-	}
-
-	// 6. Store metadata in git config
-	_, _ = fmt.Fprintf(r.stdout, "Tracking branch '%s' with parent '%s' and base '%s'.\n", currentBranch, selectedParent, selectedBase)
-
-	err = git.SetGitConfig(parentConfigKey, selectedParent)
+	parents, err := git.GetAllSocleParents()
 	if err != nil {
-		return fmt.Errorf("failed to set socle-parent config: %w", err)
+		return fmt.Errorf("failed to read tracking metadata: %w", err)
+	}
+	for node, seen := parent, map[string]bool{}; node != ""; node = parents[node] {
+		if node == child {
+			return fmt.Errorf("tracking '%s' on '%s' would create a metadata cycle", child, parent)
+		}
+		if seen[node] {
+			return fmt.Errorf("existing tracking metadata contains a cycle through '%s'; repair it before tracking '%s'", node, child)
+		}
+		seen[node] = true
+	}
+	if !knownTrunks[parent] {
+		for _, existingChild := range git.BuildChildMap(parents)[parent] {
+			if existingChild != child {
+				return fmt.Errorf("parent '%s' already has child '%s'; non-base branches can only have one child", parent, existingChild)
+			}
+		}
 	}
 
-	baseConfigKey := fmt.Sprintf("branch.%s.socle-base", currentBranch)
-	err = git.SetGitConfig(baseConfigKey, selectedBase)
-	if err != nil {
-		_ = git.UnsetGitConfig(parentConfigKey)
-		return fmt.Errorf("failed to set socle-base config: %w", err)
+	resolvedBase := ""
+	if knownTrunks[parent] {
+		resolvedBase = parent
+	} else {
+		parentParent, readErr := configValue(fmt.Sprintf("branch.%s.socle-parent", parent))
+		if readErr != nil {
+			return fmt.Errorf("failed to read parent metadata for '%s': %w", parent, readErr)
+		}
+		if parentParent != "" {
+			parentBase, baseErr := configValue(fmt.Sprintf("branch.%s.socle-base", parent))
+			if baseErr != nil {
+				return fmt.Errorf("failed to read base for parent '%s': %w", parent, baseErr)
+			}
+			resolvedBase = parentBase
+		}
+		if parentParent != "" && resolvedBase == "" {
+			return fmt.Errorf("tracked parent '%s' has incomplete metadata (missing base); repair it before tracking child '%s'", parent, child)
+		}
+		if parentParent == "" {
+			return fmt.Errorf("parent '%s' is untracked and is not a supported base; track the parent first", parent)
+		}
+	}
+	if resolvedBase == "" {
+		resolvedBase = r.base
+	}
+	if r.base != "" && resolvedBase != r.base {
+		return fmt.Errorf("base '%s' conflicts with inherited base '%s' from parent '%s'", r.base, resolvedBase, parent)
 	}
 
-	if discovery != nil && discovery.prNumber > 0 {
-		if discovery.prBase != "" && discovery.prBase != selectedParent {
-			_, _ = fmt.Fprintln(r.stderr, ui.Colors.WarningStyle.Render(fmt.Sprintf(
-				"Warning: discovered PR #%d targets '%s', but you selected parent '%s'.",
-				discovery.prNumber, discovery.prBase, selectedParent,
-			)))
+	if oldParent == parent && oldBase == resolvedBase {
+		r.storeDiscoveredPR(child, discovery)
+		_, _ = fmt.Fprintf(r.stdout, "Tracked child '%s': parent '%s', base '%s' (unchanged).\n", child, parent, resolvedBase)
+		return nil
+	}
+	if oldBase != resolvedBase {
+		desc := git.FindAllDescendants(child, git.BuildChildMap(parents))
+		if len(desc) > 0 {
+			sort.Strings(desc)
+			previousBase := oldBase
+			if previousBase == "" {
+				previousBase = "<missing>"
+			}
+			return fmt.Errorf("cannot change base for '%s' from '%s' to '%s': tracked descendants %v would become inconsistent", child, previousBase, resolvedBase, desc)
 		}
-		if errUnset := git.UnsetStoredPRNumber(currentBranch); errUnset != nil {
-			r.logger.Debug("Failed to clear existing stored PR number before updating", "branch", currentBranch, "error", errUnset)
-		}
-		if errSet := git.SetStoredPRNumber(currentBranch, discovery.prNumber); errSet != nil {
-			_, _ = fmt.Fprintln(r.stderr, ui.Colors.WarningStyle.Render(fmt.Sprintf(
-				"Warning: failed to store discovered PR #%d locally: %v", discovery.prNumber, errSet,
-			)))
-		} else {
-			_, _ = fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render(fmt.Sprintf(
-				"Stored discovered pull request #%d for '%s'.", discovery.prNumber, currentBranch,
-			)))
-		}
-	} else if r.discoverRemote && discovery != nil {
-		_, _ = fmt.Fprintln(r.stdout, ui.Colors.InfoStyle.Render("No open pull request discovered to store."))
+	}
+	if err := git.SetGitConfig(parentKey, parent); err != nil {
+		return fmt.Errorf("failed to write parent for '%s': %w", child, err)
+	}
+	if err := git.SetGitConfig(baseKey, resolvedBase); err != nil {
+		restoreConfig(parentKey, oldParent)
+		return fmt.Errorf("failed to write base for '%s' (prior parent restored): %w", child, err)
 	}
 
-	_, _ = fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("Branch tracking information saved successfully."))
+	r.storeDiscoveredPR(child, discovery)
+	_, _ = fmt.Fprintf(r.stdout, "Tracked child '%s': parent '%s', base '%s'.\n", child, parent, resolvedBase)
 	return nil
+}
+
+func (r *trackCmdRunner) storeDiscoveredPR(branch string, discovery *remoteDiscoveryResult) {
+	if discovery == nil || discovery.prNumber <= 0 {
+		return
+	}
+	if err := git.SetStoredPRNumber(branch, discovery.prNumber); err != nil {
+		_, _ = fmt.Fprintf(r.stderr, "Warning: failed to store discovered PR #%d: %v\n", discovery.prNumber, err)
+	}
+}
+
+func requireLocalBranch(role, branch string) error {
+	exists, err := git.BranchExists(branch)
+	if err != nil {
+		return fmt.Errorf("failed to verify %s branch '%s': %w", role, branch, err)
+	}
+	if !exists {
+		return fmt.Errorf("%s branch '%s' does not exist locally", role, branch)
+	}
+	return nil
+}
+
+func configValue(key string) (string, error) {
+	value, err := git.GetGitConfig(key)
+	if errors.Is(err, git.ErrConfigNotFound) {
+		return "", nil
+	}
+	return value, err
+}
+
+func restoreConfig(key, value string) {
+	if value == "" {
+		_ = git.UnsetGitConfig(key)
+	} else {
+		_ = git.SetGitConfig(key, value)
+	}
 }
 
 type remoteDiscoveryResult struct {

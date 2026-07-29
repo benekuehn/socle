@@ -9,7 +9,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/benekuehn/socle/cli/so/internal/git"
 	"github.com/benekuehn/socle/cli/so/internal/ui"
-	"github.com/mattn/go-isatty"
+	"golang.org/x/term"
 )
 
 type createCmdRunner struct {
@@ -293,5 +293,5 @@ func hasInteractiveSurveyTerminal(stdin io.Reader, stderr io.Writer) bool {
 		return false
 	}
 
-	return isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stderrFile.Fd())
+	return term.IsTerminal(int(stdinFile.Fd())) && term.IsTerminal(int(stderrFile.Fd()))
 }
