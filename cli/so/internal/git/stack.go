@@ -24,13 +24,9 @@ type StackInfo struct {
 }
 
 // Invariants / Semantics:
-// - FullStack is a linear ordered slice from BaseBranch to tip when the base has <=1 child lineage.
-// - FullStack is set to nil ONLY when the currently checked out branch is a known base branch (main/master/develop)
-//   that has >1 tracked child branches, i.e. multiple independent stacks originate from it.
-//   In that case CurrentStack will contain just the base branch and navigation commands should prompt.
-// - When the current branch is NOT the base but the base has multiple child stacks, FullStack is still nil.
-//   CurrentStack then represents the lineage from the base to the current branch and navigation commands must
-//   treat it as the active linear stack without prompting for stack selection.
+// - FullStack is the current branch's linear lineage from BaseBranch to its tip.
+// - FullStack is nil only on a known base branch (main/master/develop) with multiple child stacks;
+//   callers should then prompt for a stack.
 // The navigation runners (up/top/bottom) implement this distinction; log command also follows these rules.
 
 // GetStackInfo retrieves comprehensive information about the current branch stack.
