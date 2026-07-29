@@ -247,4 +247,23 @@ func TestTrackExplicitRelationships(t *testing.T) {
 			t.Fatalf("expected descendant safety error, got %v", err)
 		}
 	})
+
+	t.Run("rejects repairing a missing base above descendants", func(t *testing.T) {
+		repoPath, cleanup := testutils.SetupGitRepo(t)
+		defer cleanup()
+		for _, branch := range []string{"parent", "child"} {
+			testutils.RunCommand(t, repoPath, "git", "branch", branch)
+		}
+		testutils.RunCommand(t, repoPath, "git", "config", "--local", "branch.parent.socle-parent", "main")
+		testutils.RunCommand(t, repoPath, "git", "config", "--local", "branch.child.socle-parent", "parent")
+		testutils.RunCommand(t, repoPath, "git", "config", "--local", "branch.child.socle-base", "main")
+
+		err := runSoCommand(t, "track", "--branch=parent", "--parent=main", "--base=")
+		if err == nil || !strings.Contains(err.Error(), "from '<missing>'") || !strings.Contains(err.Error(), "tracked descendants") {
+			t.Fatalf("expected missing-base descendant safety error, got %v", err)
+		}
+		if _, err := git.GetGitConfig("branch.parent.socle-base"); !errors.Is(err, git.ErrConfigNotFound) {
+			t.Fatalf("failed validation wrote base metadata: %v", err)
+		}
+	})
 }

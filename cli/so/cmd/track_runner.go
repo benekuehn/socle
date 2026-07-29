@@ -154,11 +154,15 @@ func (r *trackCmdRunner) run() error {
 		_, _ = fmt.Fprintf(r.stdout, "Tracked child '%s': parent '%s', base '%s' (unchanged).\n", child, parent, resolvedBase)
 		return nil
 	}
-	if oldBase != "" && oldBase != resolvedBase {
+	if oldBase != resolvedBase {
 		desc := git.FindAllDescendants(child, git.BuildChildMap(parents))
 		if len(desc) > 0 {
 			sort.Strings(desc)
-			return fmt.Errorf("cannot change base for '%s' from '%s' to '%s': tracked descendants %v would become inconsistent", child, oldBase, resolvedBase, desc)
+			previousBase := oldBase
+			if previousBase == "" {
+				previousBase = "<missing>"
+			}
+			return fmt.Errorf("cannot change base for '%s' from '%s' to '%s': tracked descendants %v would become inconsistent", child, previousBase, resolvedBase, desc)
 		}
 	}
 	if err := git.SetGitConfig(parentKey, parent); err != nil {
