@@ -17,7 +17,9 @@ func booleanFlagCommand(t *testing.T, args ...string) *cobra.Command {
 	cmd.Flags().Bool("no-fetch", false, "")
 	cmd.Flags().Bool("no-draft", false, "")
 	cmd.Flags().Bool("no-restack", false, "")
-	require.NoError(t, cmd.ParseFlags(args))
+	if len(args) > 0 {
+		require.NoError(t, cmd.ParseFlags(args))
+	}
 	return cmd
 }
 
@@ -79,6 +81,8 @@ func TestBooleanFlagSyncOptions(t *testing.T) {
 
 func TestBooleanFlagRestackPushFlagsRemainExclusive(t *testing.T) {
 	cmd := booleanFlagCommand(t)
+	require.NotNil(t, cmd.Flags().Lookup("force-push"))
+	require.NotNil(t, cmd.Flags().Lookup("no-push"))
 	cmd.MarkFlagsMutuallyExclusive("force-push", "no-push")
 	cmd.SetArgs([]string{"--force-push", "--no-push"})
 	assert.Error(t, cmd.Execute())

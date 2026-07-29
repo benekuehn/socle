@@ -61,9 +61,9 @@ and creates or updates corresponding GitHub Pull Requests.
 }
 
 func submitBooleanOptions(cmd *cobra.Command) (forcePush, noPush, draft bool) {
-	forcePush, _ = cmd.Flags().GetBool("force")
-	noPush, _ = cmd.Flags().GetBool("no-push")
-	noDraft, _ := cmd.Flags().GetBool("no-draft")
+	forcePush = mustGetBool(cmd, "force")
+	noPush = mustGetBool(cmd, "no-push")
+	noDraft := mustGetBool(cmd, "no-draft")
 	return forcePush, noPush, !noDraft
 }
 
