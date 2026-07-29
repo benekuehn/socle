@@ -358,7 +358,7 @@ func (c *Client) FindOpenPullRequestForBranch(branchName string) (*github.PullRe
 		State: "open",
 		Head:  head,
 		ListOptions: github.ListOptions{
-			PerPage: 1, // We only expect one open PR for a branch
+			PerPage: 2,
 		},
 	}
 
@@ -367,7 +367,10 @@ func (c *Client) FindOpenPullRequestForBranch(branchName string) (*github.PullRe
 		return nil, fmt.Errorf("failed to list pull requests for branch '%s': %w", branchName, err)
 	}
 
-	if len(prs) > 0 {
+	if len(prs) > 1 {
+		return nil, fmt.Errorf("multiple open pull requests found for branch '%s'", branchName)
+	}
+	if len(prs) == 1 {
 		return prs[0], nil
 	}
 

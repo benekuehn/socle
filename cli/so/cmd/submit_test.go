@@ -88,7 +88,7 @@ func TestSubmitCommand(t *testing.T) {
 		}
 		// No need for defer here, t.Cleanup handles it for the parent test
 
-		// Expectations for feature-a (update path)
+		// Discover that feature-b has no existing PR.
 		mockClient.On("FindOpenPullRequestForBranch", "feature-b").Return(nil, nil).Once()
 		mockClient.On("GetPullRequest", 101).Return( // Simulate finding PR 101
 			&github.PullRequest{Number: github.Ptr(101), HTMLURL: github.Ptr("url-a"), Title: github.Ptr("feat: commit on feature-a"), Base: &github.PullRequestBranch{Ref: github.Ptr("main")}}, nil,

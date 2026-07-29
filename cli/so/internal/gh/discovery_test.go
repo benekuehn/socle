@@ -52,6 +52,8 @@ func TestDiscoverPRs(t *testing.T) {
 	})
 
 	t.Run("fails on config read", func(t *testing.T) {
+		_, cleanup := testutils.SetupGitRepo(t)
+		defer cleanup()
 		t.Setenv("GIT_CONFIG_COUNT", "1")
 		t.Setenv("GIT_CONFIG_KEY_0", "bad key")
 		t.Setenv("GIT_CONFIG_VALUE_0", "x")
