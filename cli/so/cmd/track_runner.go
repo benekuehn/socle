@@ -43,8 +43,21 @@ func (r *trackCmdRunner) run() error {
 	if knownTrunks[child] {
 		return fmt.Errorf("cannot track a base branch ('%s') itself", child)
 	}
+	parentKey := fmt.Sprintf("branch.%s.socle-parent", child)
+	baseKey := fmt.Sprintf("branch.%s.socle-base", child)
+	oldParent, err := configValue(parentKey)
+	if err != nil {
+		return fmt.Errorf("failed to read existing parent for '%s': %w", child, err)
+	}
+	oldBase, err := configValue(baseKey)
+	if err != nil {
+		return fmt.Errorf("failed to read existing base for '%s': %w", child, err)
+	}
 
 	parent := r.parent
+	if parent == "" && oldParent != "" {
+		parent = oldParent
+	}
 	var discovery *remoteDiscoveryResult
 	if r.discoverRemote {
 		var err error
@@ -96,6 +109,9 @@ func (r *trackCmdRunner) run() error {
 		if err := requireLocalBranch("base", r.base); err != nil {
 			return err
 		}
+		if !knownTrunks[r.base] {
+			return fmt.Errorf("unsupported base branch '%s'; supported bases are main, master, and develop", r.base)
+		}
 	}
 
 	parents, err := git.GetAllSocleParents()
@@ -111,6 +127,13 @@ func (r *trackCmdRunner) run() error {
 		}
 		seen[node] = true
 	}
+	if !knownTrunks[parent] {
+		for _, existingChild := range git.BuildChildMap(parents)[parent] {
+			if existingChild != child {
+				return fmt.Errorf("parent '%s' already has child '%s'; non-base branches can only have one child", parent, existingChild)
+			}
+		}
+	}
 
 	resolvedBase := ""
 	if knownTrunks[parent] {
@@ -121,16 +144,17 @@ func (r *trackCmdRunner) run() error {
 			return fmt.Errorf("failed to read parent metadata for '%s': %w", parent, readErr)
 		}
 		if parentParent != "" {
-			resolvedBase, err = configValue(fmt.Sprintf("branch.%s.socle-base", parent))
-		}
-		if err != nil {
-			return fmt.Errorf("failed to read base for parent '%s': %w", parent, err)
+			parentBase, baseErr := configValue(fmt.Sprintf("branch.%s.socle-base", parent))
+			if baseErr != nil {
+				return fmt.Errorf("failed to read base for parent '%s': %w", parent, baseErr)
+			}
+			resolvedBase = parentBase
 		}
 		if parentParent != "" && resolvedBase == "" {
 			return fmt.Errorf("tracked parent '%s' has incomplete metadata (missing base); repair it before tracking child '%s'", parent, child)
 		}
-		if resolvedBase == "" && r.base == "" {
-			return fmt.Errorf("parent '%s' is untracked; retry with: so track --branch %s --parent %s --base <base>", parent, child, parent)
+		if parentParent == "" {
+			return fmt.Errorf("parent '%s' is untracked and is not a supported base; track the parent first", parent)
 		}
 	}
 	if resolvedBase == "" {
@@ -140,17 +164,8 @@ func (r *trackCmdRunner) run() error {
 		return fmt.Errorf("base '%s' conflicts with inherited base '%s' from parent '%s'", r.base, resolvedBase, parent)
 	}
 
-	parentKey := fmt.Sprintf("branch.%s.socle-parent", child)
-	baseKey := fmt.Sprintf("branch.%s.socle-base", child)
-	oldParent, err := configValue(parentKey)
-	if err != nil {
-		return err
-	}
-	oldBase, err := configValue(baseKey)
-	if err != nil {
-		return err
-	}
 	if oldParent == parent && oldBase == resolvedBase {
+		r.storeDiscoveredPR(child, discovery)
 		_, _ = fmt.Fprintf(r.stdout, "Tracked child '%s': parent '%s', base '%s' (unchanged).\n", child, parent, resolvedBase)
 		return nil
 	}
@@ -173,13 +188,18 @@ func (r *trackCmdRunner) run() error {
 		return fmt.Errorf("failed to write base for '%s' (prior parent restored): %w", child, err)
 	}
 
-	if discovery != nil && discovery.prNumber > 0 {
-		if err := git.SetStoredPRNumber(child, discovery.prNumber); err != nil {
-			_, _ = fmt.Fprintf(r.stderr, "Warning: failed to store discovered PR #%d: %v\n", discovery.prNumber, err)
-		}
-	}
+	r.storeDiscoveredPR(child, discovery)
 	_, _ = fmt.Fprintf(r.stdout, "Tracked child '%s': parent '%s', base '%s'.\n", child, parent, resolvedBase)
 	return nil
+}
+
+func (r *trackCmdRunner) storeDiscoveredPR(branch string, discovery *remoteDiscoveryResult) {
+	if discovery == nil || discovery.prNumber <= 0 {
+		return
+	}
+	if err := git.SetStoredPRNumber(branch, discovery.prNumber); err != nil {
+		_, _ = fmt.Fprintf(r.stderr, "Warning: failed to store discovered PR #%d: %v\n", discovery.prNumber, err)
+	}
 }
 
 func requireLocalBranch(role, branch string) error {

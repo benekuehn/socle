@@ -86,8 +86,8 @@ func TestTrackCommand(t *testing.T) {
 		testutils.RunCommand(t, repoPath, "git", "config", "--local", "branch.feature/a.socle-parent", "main")
 		testutils.RunCommand(t, repoPath, "git", "config", "--local", "branch.feature/a.socle-base", "main")
 
-		// Action: Run 'so track' again
-		err := runSoCommand(t, "track", "--parent=main")
+		// Action: Run 'so track' again without restating the relationship.
+		err := runSoCommand(t, "track")
 
 		// Assertion 1: Command should succeed (informational exit)
 		if err != nil {
@@ -166,6 +166,17 @@ func TestTrackCommand(t *testing.T) {
 			t.Errorf("expected stored PR number '123', got '%s'", storedPR)
 		}
 
+		if err := git.UnsetStoredPRNumber("feature/a"); err != nil {
+			t.Fatalf("failed to clear stored PR number: %v", err)
+		}
+		if err := runSoCommand(t, "track", "--discover"); err != nil {
+			t.Fatalf("unchanged track with discover failed unexpectedly: %v", err)
+		}
+		storedPR, err = git.GetGitConfig("branch.feature/a.socle-pr-number")
+		if err != nil || storedPR != "123" {
+			t.Fatalf("unchanged track did not restore discovered PR number: value=%q error=%v", storedPR, err)
+		}
+
 		mockClient.AssertExpectations(t)
 	})
 }
@@ -209,25 +220,55 @@ func TestTrackExplicitRelationships(t *testing.T) {
 		}
 	})
 
-	t.Run("requires explicit base for untracked parent and rejects stale base", func(t *testing.T) {
+	t.Run("rejects an untracked non-base parent", func(t *testing.T) {
 		repoPath, cleanup := testutils.SetupGitRepo(t)
 		defer cleanup()
 		testutils.RunCommand(t, repoPath, "git", "branch", "parent")
 		testutils.RunCommand(t, repoPath, "git", "branch", "child")
 		testutils.RunCommand(t, repoPath, "git", "config", "--local", "branch.parent.socle-base", "main")
 		err := runSoCommand(t, "track", "--branch=child", "--parent=parent")
-		if err == nil || !strings.Contains(err.Error(), "--base <base>") {
-			t.Fatalf("expected explicit-base retry, got %v", err)
+		if err == nil || !strings.Contains(err.Error(), "track the parent first") {
+			t.Fatalf("expected untracked-parent error, got %v", err)
 		}
-		if err := runSoCommand(t, "track", "--branch=child", "--parent=parent", "--base=main"); err != nil {
-			t.Fatalf("explicit base failed: %v", err)
+		if err := runSoCommand(t, "track", "--branch=child", "--parent=parent", "--base=main"); err == nil || !strings.Contains(err.Error(), "track the parent first") {
+			t.Fatalf("expected explicit base not to bypass parent tracking, got %v", err)
+		}
+	})
+
+	t.Run("rejects unsupported bases", func(t *testing.T) {
+		repoPath, cleanup := testutils.SetupGitRepo(t)
+		defer cleanup()
+		for _, branch := range []string{"child", "trunk"} {
+			testutils.RunCommand(t, repoPath, "git", "branch", branch)
+		}
+		err := runSoCommand(t, "track", "--branch=child", "--parent=trunk", "--base=trunk")
+		if err == nil || !strings.Contains(err.Error(), "unsupported base branch 'trunk'") {
+			t.Fatalf("expected unsupported-base error, got %v", err)
+		}
+	})
+
+	t.Run("rejects a second child on a non-base parent", func(t *testing.T) {
+		repoPath, cleanup := testutils.SetupGitRepo(t)
+		defer cleanup()
+		for _, branch := range []string{"parent", "first", "second"} {
+			testutils.RunCommand(t, repoPath, "git", "branch", branch)
+		}
+		if err := runSoCommand(t, "track", "--branch=parent", "--parent=main", "--base="); err != nil {
+			t.Fatal(err)
+		}
+		if err := runSoCommand(t, "track", "--branch=first", "--parent=parent", "--base="); err != nil {
+			t.Fatal(err)
+		}
+		err := runSoCommand(t, "track", "--branch=second", "--parent=parent", "--base=")
+		if err == nil || !strings.Contains(err.Error(), "already has child 'first'") {
+			t.Fatalf("expected occupied-parent error, got %v", err)
 		}
 	})
 
 	t.Run("rejects cycles and unsafe base changes", func(t *testing.T) {
 		repoPath, cleanup := testutils.SetupGitRepo(t)
 		defer cleanup()
-		for _, branch := range []string{"a", "b", "other"} {
+		for _, branch := range []string{"a", "b", "master"} {
 			testutils.RunCommand(t, repoPath, "git", "branch", branch)
 		}
 		if err := runSoCommand(t, "track", "--branch=a", "--parent=main", "--base="); err != nil {
@@ -239,11 +280,7 @@ func TestTrackExplicitRelationships(t *testing.T) {
 		if err := runSoCommand(t, "track", "--branch=a", "--parent=b", "--base="); err == nil || !strings.Contains(err.Error(), "cycle") {
 			t.Fatalf("expected cycle error, got %v", err)
 		}
-		if err := runSoCommand(t, "track", "--branch=other", "--parent=main", "--base="); err != nil {
-			t.Fatal(err)
-		}
-		testutils.RunCommand(t, repoPath, "git", "config", "--local", "branch.other.socle-base", "other")
-		if err := runSoCommand(t, "track", "--branch=a", "--parent=other", "--base=other"); err == nil || !strings.Contains(err.Error(), "tracked descendants") {
+		if err := runSoCommand(t, "track", "--branch=a", "--parent=master", "--base=master"); err == nil || !strings.Contains(err.Error(), "tracked descendants") {
 			t.Fatalf("expected descendant safety error, got %v", err)
 		}
 	})
