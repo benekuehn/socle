@@ -188,7 +188,7 @@ func (r *syncCmdRunner) run(cmd *cobra.Command) error {
 
 			branchUpdates, err := replacementParents(initialStackInfo.ParentMap, branchesToDelete)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to determine replacement parents: %w", err)
 			}
 
 			// Apply all tracking updates first

@@ -42,7 +42,7 @@ func TestSyncCommand_AdjacentDeletionsReparentSurvivor(t *testing.T) {
 	mockClient := gh.NewMockClient()
 	mockClient.PRStatuses[101] = gh.PRStatusMerged
 	mockClient.PRStatuses[102] = gh.PRStatusClosed
-	mockClient.On("FindOpenPullRequestForBranch", "feature-c").Return(nil, nil).Once()
+	mockClient.On("FindPullRequestForBranch", "feature-c").Return(nil, nil).Once()
 
 	originalCreateGHClient := gh.CreateClient
 	gh.CreateClient = func(ctx context.Context, owner, repo string) (gh.ClientInterface, error) {
@@ -84,7 +84,7 @@ func TestSyncCommand_SingleDeletionReparentsChild(t *testing.T) {
 
 	mockClient := gh.NewMockClient()
 	mockClient.PRStatuses[101] = gh.PRStatusMerged
-	mockClient.On("FindOpenPullRequestForBranch", "feature-b").Return(nil, nil).Once()
+	mockClient.On("FindPullRequestForBranch", "feature-b").Return(nil, nil).Once()
 	originalCreateGHClient := gh.CreateClient
 	gh.CreateClient = func(context.Context, string, string) (gh.ClientInterface, error) { return mockClient, nil }
 	t.Cleanup(func() { gh.CreateClient = originalCreateGHClient })
@@ -112,7 +112,7 @@ func TestSyncCommand_DeclinedDeletionLeavesBranchesUnchanged(t *testing.T) {
 
 	mockClient := gh.NewMockClient()
 	mockClient.PRStatuses[101] = gh.PRStatusMerged
-	mockClient.On("FindOpenPullRequestForBranch", "feature-b").Return(nil, nil).Once()
+	mockClient.On("FindPullRequestForBranch", "feature-b").Return(nil, nil).Once()
 	originalCreateGHClient := gh.CreateClient
 	gh.CreateClient = func(context.Context, string, string) (gh.ClientInterface, error) { return mockClient, nil }
 	t.Cleanup(func() { gh.CreateClient = originalCreateGHClient })
