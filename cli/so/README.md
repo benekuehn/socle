@@ -253,7 +253,7 @@ so track [flags]
 ```
 
 ```
-      --base string     Stack base (required when the parent is untracked)
+      --base string     Expected stack base (validated against the parent's inherited base)
       --branch string   Child branch to track (defaults to the current branch)
   -d, --discover        Discover remote metadata (e.g. existing pull requests) while tracking
   -h, --help            help for track

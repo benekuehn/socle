@@ -42,6 +42,6 @@ func init() {
 	AddCommand(trackCmd)
 	trackCmd.Flags().String("branch", "", "Child branch to track (defaults to the current branch)")
 	trackCmd.Flags().String("parent", "", "Parent branch to track")
-	trackCmd.Flags().String("base", "", "Stack base (required when the parent is untracked)")
+	trackCmd.Flags().String("base", "", "Expected stack base (validated against the parent's inherited base)")
 	trackCmd.Flags().BoolP("discover", "d", false, "Discover remote metadata (e.g. existing pull requests) while tracking")
 }
