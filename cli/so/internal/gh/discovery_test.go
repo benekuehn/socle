@@ -97,12 +97,16 @@ func TestDiscoverPRs(t *testing.T) {
 }
 
 func TestDiscoverAllPRsStoresClosedPR(t *testing.T) {
-	_, cleanup := testutils.SetupGitRepo(t)
+	repo, cleanup := testutils.SetupGitRepo(t)
 	defer cleanup()
+	testutils.RunCommand(t, repo, "git", "checkout", "-b", "feature")
+	headSHA, err := git.GetCurrentCommit()
+	require.NoError(t, err)
 	client := NewMockClient()
 	client.On("FindPullRequestForBranch", "feature").Return(&github.PullRequest{
 		Number: github.Ptr(42),
 		State:  github.Ptr("closed"),
+		Head:   &github.PullRequestBranch{SHA: github.Ptr(headSHA)},
 	}, nil).Once()
 
 	prs, err := DiscoverAllPRs(client, []string{"feature"})
@@ -111,5 +115,25 @@ func TestDiscoverAllPRsStoresClosedPR(t *testing.T) {
 	number, err := git.GetStoredPRNumber("feature")
 	require.NoError(t, err)
 	assert.Equal(t, 42, number)
+	client.AssertExpectations(t)
+}
+
+func TestDiscoverAllPRsSkipsClosedPRWithStaleHead(t *testing.T) {
+	repo, cleanup := testutils.SetupGitRepo(t)
+	defer cleanup()
+	testutils.RunCommand(t, repo, "git", "checkout", "-b", "feature")
+	client := NewMockClient()
+	client.On("FindPullRequestForBranch", "feature").Return(&github.PullRequest{
+		Number: github.Ptr(42),
+		State:  github.Ptr("closed"),
+		Head:   &github.PullRequestBranch{SHA: github.Ptr("stale")},
+	}, nil).Once()
+
+	prs, err := DiscoverAllPRs(client, []string{"feature"})
+	require.NoError(t, err)
+	assert.Empty(t, prs)
+	number, err := git.GetStoredPRNumber("feature")
+	require.NoError(t, err)
+	assert.Zero(t, number)
 	client.AssertExpectations(t)
 }

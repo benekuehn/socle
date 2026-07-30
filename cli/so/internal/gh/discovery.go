@@ -43,6 +43,16 @@ func discoverPRs(branches []string, find func(string) (*github.PullRequest, erro
 		}
 
 		if pr != nil {
+			if state == "existing" && pr.GetState() == "closed" {
+				localSHA, err := git.GetCurrentBranchCommit(branch)
+				if err != nil {
+					return nil, fmt.Errorf("get local branch tip for branch %q: %w", branch, err)
+				}
+				if pr.GetHead().GetSHA() != localSHA {
+					slog.Warn("Skipping closed PR with stale head", "branch", branch, "pr_number", pr.GetNumber())
+					continue
+				}
+			}
 			prNumber := pr.GetNumber()
 			slog.Info("Discovered existing PR", "branch", branch, "pr_number", prNumber, "pr_title", pr.GetTitle())
 			discoveredPRs[branch] = prNumber
