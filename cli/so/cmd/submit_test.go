@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/benekuehn/socle/cli/so/internal/gh"
@@ -35,6 +36,7 @@ func TestSubmitCommand(t *testing.T) {
 		// No need for defer here, t.Cleanup handles it for the parent test
 
 		// Expectations for feature-a
+		mockClient.On("FindOpenPullRequestForBranch", "feature-a").Return(nil, nil).Once()
 		// Assume config check might happen, return not found
 		mockClient.On("GetPullRequest", mock.AnythingOfType("int")).Return(nil, git.ErrConfigNotFound).Maybe()
 		// Expect PR creation
@@ -86,7 +88,8 @@ func TestSubmitCommand(t *testing.T) {
 		}
 		// No need for defer here, t.Cleanup handles it for the parent test
 
-		// Expectations for feature-a (update path)
+		// Discover that feature-b has no existing PR.
+		mockClient.On("FindOpenPullRequestForBranch", "feature-b").Return(nil, nil).Once()
 		mockClient.On("GetPullRequest", 101).Return( // Simulate finding PR 101
 			&github.PullRequest{Number: github.Ptr(101), HTMLURL: github.Ptr("url-a"), Title: github.Ptr("feat: commit on feature-a"), Base: &github.PullRequestBranch{Ref: github.Ptr("main")}}, nil,
 		).Once()
@@ -146,5 +149,92 @@ func TestSubmitCommand(t *testing.T) {
 		assert.Equal(t, "102", prNumB, "feature-b PR# should be 102")
 		assert.Equal(t, "5001", commentIdA, "feature-a comment ID should still be 5001") // Assuming update used same ID
 		assert.Equal(t, "5002", commentIdB, "feature-b comment ID should be 5002")
+	})
+
+	t.Run("Submit with PR discovery", func(t *testing.T) {
+		// Setup: main -> feature-a (tracked) -> feature-b (tracked)
+		repoPath, cleanup := setupRepoWithStack(t, []string{"main", "feature-a", "feature-b"})
+		defer cleanup()
+		testutils.RunCommand(t, repoPath, "git", "remote", "add", "origin", "https://github.com/test-owner/test-repo.git")
+		testutils.RunCommand(t, repoPath, "git", "checkout", "feature-b") // Be on the branch to submit
+
+		// --- Setup Mock ---
+		mockClient := gh.NewMockClient()
+		gh.CreateClient = func(ctx context.Context, owner, repo string) (gh.ClientInterface, error) {
+			assert.Equal(t, "test-owner", owner)
+			assert.Equal(t, "test-repo", repo)
+			return mockClient, nil
+		}
+
+		// Mock PR discovery for feature-a (existing PR)
+		mockPR1 := &github.PullRequest{
+			Number: github.Ptr(201),
+			Title:  github.Ptr("Feature A PR"),
+		}
+		mockClient.On("FindOpenPullRequestForBranch", "feature-a").Return(mockPR1, nil)
+		mockClient.On("FindOpenPullRequestForBranch", "feature-b").Return(nil, nil).Once()
+		mockClient.On("GetPullRequest", 201).Return(&github.PullRequest{Number: github.Ptr(201), Base: &github.PullRequestBranch{Ref: github.Ptr("main")}}, nil).Once()
+		mockClient.On("FindCommentWithMarker", 201, mock.AnythingOfType("string")).Return(int64(0), nil).Once()
+		mockClient.On("CreateComment", 201, mock.AnythingOfType("string")).Return(&github.IssueComment{ID: github.Ptr(int64(5001))}, nil).Once()
+
+		// Expectations for feature-b (new PR creation)
+		mockClient.On("GetPullRequest", mock.AnythingOfType("int")).Return(nil, git.ErrConfigNotFound).Maybe()
+		mockClient.On("CreatePullRequest", "feature-b", "feature-a", "feat: commit on feature-b", "Test Body B", false).Return(
+			&github.PullRequest{Number: github.Ptr(202), HTMLURL: github.Ptr("url-b"), Title: github.Ptr("feat: commit on feature-b")}, nil,
+		).Once()
+		mockClient.On("FindCommentWithMarker", 202, mock.AnythingOfType("string")).Return(int64(0), nil).Once()
+		mockClient.On("CreateComment", 202, mock.AnythingOfType("string")).Return(
+			&github.IssueComment{ID: github.Ptr(int64(5002))}, nil,
+		).Once()
+
+		// Action: Run 'so submit' with test flags
+		err := runSoCommand(t, "submit",
+			"--no-push",
+			"--no-draft",
+			"--test-title=feat: commit on feature-b",
+			"--test-body=Test Body B",
+		)
+
+		// Assertions
+		require.NoError(t, err)
+		mockClient.AssertExpectations(t)
+
+		// Check that PR discovery worked for feature-a
+		prNumA, err := git.GetStoredPRNumber("feature-a")
+		assert.NoError(t, err)
+		assert.Equal(t, 201, prNumA)
+
+		// Check Git Config was written for feature-b
+		prNumB, _ := git.GetGitConfig("branch.feature-b.socle-pr-number")
+		commentIdB, _ := git.GetGitConfig("branch.feature-b.socle-comment-id")
+		assert.Equal(t, "202", prNumB)
+		assert.Equal(t, "5002", commentIdB)
+	})
+
+	t.Run("Submit stops on discovery error", func(t *testing.T) {
+		repoPath, cleanup := setupRepoWithStack(t, []string{"main", "feature-a"})
+		defer cleanup()
+		testutils.RunCommand(t, repoPath, "git", "remote", "add", "origin", "https://github.com/test-owner/test-repo.git")
+		client := gh.NewMockClient()
+		client.On("FindOpenPullRequestForBranch", "feature-a").Return(nil, errors.New("unavailable")).Once()
+		gh.CreateClient = func(context.Context, string, string) (gh.ClientInterface, error) { return client, nil }
+
+		err := runSoCommand(t, "submit", "--no-push", "--test-title=test", "--test-body=test")
+		require.Error(t, err)
+		client.AssertNotCalled(t, "CreatePullRequest", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+		client.AssertExpectations(t)
+	})
+
+	t.Run("Submit from base with multiple stacks returns an error", func(t *testing.T) {
+		repoPath, cleanup := setupRepoWithMultipleStacks(t)
+		defer cleanup()
+		testutils.RunCommand(t, repoPath, "git", "checkout", "main")
+		testutils.RunCommand(t, repoPath, "git", "remote", "add", "origin", "https://github.com/test-owner/test-repo.git")
+		client := gh.NewMockClient()
+		gh.CreateClient = func(context.Context, string, string) (gh.ClientInterface, error) { return client, nil }
+
+		err := runSoCommand(t, "submit", "--no-push")
+		require.ErrorContains(t, err, "cannot submit from base branch 'main' with multiple stacks")
+		client.AssertNotCalled(t, "FindOpenPullRequestForBranch", mock.Anything)
 	})
 }

@@ -7,8 +7,25 @@ import (
 
 	"github.com/benekuehn/socle/cli/so/internal/gh"
 	"github.com/benekuehn/socle/cli/so/internal/testutils"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
+
+func TestSyncCommand_MultipleStacksFromBase(t *testing.T) {
+	repoPath, cleanup := setupRepoWithMultipleStacks(t)
+	defer cleanup()
+	testutils.RunCommand(t, repoPath, "git", "checkout", "main")
+	testutils.RunCommand(t, repoPath, "git", "remote", "add", "origin", "https://github.com/test-owner/test-repo.git")
+
+	mockClient := gh.NewMockClient()
+	originalCreateGHClient := gh.CreateClient
+	gh.CreateClient = func(context.Context, string, string) (gh.ClientInterface, error) { return mockClient, nil }
+	t.Cleanup(func() { gh.CreateClient = originalCreateGHClient })
+
+	_, _, err := runSoCommandWithOutput(t, "sync", "--test-no-fetch")
+	require.ErrorContains(t, err, "cannot sync from base branch 'main' with multiple stacks")
+	mockClient.AssertNotCalled(t, "FindPullRequestForBranch", mock.Anything)
+}
 
 func TestSyncCommand_MergedPRs(t *testing.T) {
 	repoPath, cleanup := setupRepoWithStack(t, []string{"main", "feature-a", "feature-b"})
@@ -57,6 +74,7 @@ func TestSyncCommand_ReparentedBranchKeepsRemoteTracking(t *testing.T) {
 
 	mockClient := gh.NewMockClient()
 	mockClient.PRStatuses[101] = gh.PRStatusMerged
+	mockClient.On("FindPullRequestForBranch", "feature-b").Return(nil, nil).Once()
 
 	originalCreateGHClient := gh.CreateClient
 	gh.CreateClient = func(ctx context.Context, owner, repo string) (gh.ClientInterface, error) {

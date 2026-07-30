@@ -49,6 +49,8 @@ type ClientInterface interface {
 	FindCommentWithMarker(issueNumber int, marker string) (commentID int64, err error)
 	GetIssueComment(commentID int64) (*github.IssueComment, error)
 	GetPullRequestStatus(prNumber int) (status string, prURL string, err error)
+	FindOpenPullRequestForBranch(branchName string) (*github.PullRequest, error)
+	FindPullRequestForBranch(branchName string) (*github.PullRequest, error)
 }
 
 var _ ClientInterface = (*Client)(nil)
@@ -346,6 +348,46 @@ func (c *Client) FindCommentWithMarker(issueNumber int, marker string) (commentI
 
 	// Marker not found in any comment
 	return 0, nil // Return 0, nil error signifies "not found"
+}
+
+// FindOpenPullRequestForBranch searches for an open pull request for a given branch.
+func (c *Client) FindOpenPullRequestForBranch(branchName string) (*github.PullRequest, error) {
+	return c.findPullRequestForBranch(branchName, "open")
+}
+
+// FindPullRequestForBranch searches for a pull request in any state for a given branch.
+func (c *Client) FindPullRequestForBranch(branchName string) (*github.PullRequest, error) {
+	return c.findPullRequestForBranch(branchName, "all")
+}
+
+func (c *Client) findPullRequestForBranch(branchName, state string) (*github.PullRequest, error) {
+	// Construct the head filter in the format "owner:branch"
+	head := fmt.Sprintf("%s:%s", c.Owner, branchName)
+
+	opts := &github.PullRequestListOptions{
+		State: state,
+		Head:  head,
+		ListOptions: github.ListOptions{
+			PerPage: 2,
+		},
+	}
+
+	prs, _, err := c.gh.PullRequests.List(c.Ctx, c.Owner, c.Repo, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pull requests for branch '%s': %w", branchName, err)
+	}
+
+	if len(prs) > 1 {
+		if state == "open" {
+			return nil, fmt.Errorf("multiple open pull requests found for branch '%s'", branchName)
+		}
+		return nil, fmt.Errorf("multiple pull requests found for branch '%s'", branchName)
+	}
+	if len(prs) == 1 {
+		return prs[0], nil
+	}
+
+	return nil, nil // No open PR found
 }
 
 // CreateClient is a factory function for creating a GitHub client. It can be overridden in tests.

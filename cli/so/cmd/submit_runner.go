@@ -122,14 +122,24 @@ func (r *submitCmdRunner) prepareSubmit(ctx context.Context) ([]string, map[stri
 	// If we get here, we have a valid stackInfo
 	r.logger.Debug("Startup checks passed", "currentBranch", stackInfo.CurrentBranch)
 
+	// A nil full stack signals that the current base branch has multiple child
+	// stacks. Handle it before slicing the stack for PR discovery.
+	if stackInfo.FullStack == nil {
+		return nil, nil, fmt.Errorf("cannot submit from base branch '%s' with multiple stacks. Please navigate to a specific stack first using 'so up', 'so bottom', or 'so stacks' to see available options", stackInfo.CurrentBranch)
+	}
+
+	// --- PR Discovery ---
+	// Before processing, discover any existing PRs for branches in the stack
+	// that we don't have a stored PR number for.
+	_, _ = fmt.Fprintln(r.stdout, "Discovering existing pull requests...")
+	_, err = gh.DiscoverPRs(r.ghClient, stackInfo.FullStack[1:])
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to discover existing pull requests: %w", err)
+	}
+
 	r.logger.Debug("Using full stack from GetStackInfo...")
 	fullStack := stackInfo.FullStack
 	allParents := stackInfo.ParentMap
-
-	// Handle case where we're on a base branch with multiple stacks
-	if fullStack == nil {
-		return nil, nil, fmt.Errorf("cannot submit from base branch '%s' with multiple stacks. Please navigate to a specific stack first using 'so up', 'so bottom', or 'so stacks' to see available options", stackInfo.CurrentBranch)
-	}
 
 	r.logger.Debug("Full ordered stack identified for processing", "fullStack", fullStack)
 
@@ -294,7 +304,7 @@ func renderStackCommentBody(stack []string, currentBranch string, stackCommentMa
 	for i := len(stack) - 1; i >= 0; i-- {
 		branchName := stack[i]
 		if i == 0 {
-			fmt.Fprintf(&sb, "* `%s` (base)\n", branchName)
+			_, _ = fmt.Fprintf(&sb, "* `%s` (base)\n", branchName)
 			continue
 		}
 		prInfo, ok := prInfoMap[branchName]
@@ -304,12 +314,12 @@ func renderStackCommentBody(stack []string, currentBranch string, stackCommentMa
 		}
 
 		if ok {
-			fmt.Fprintf(&sb, "* **#%d** %s\n",
+			_, _ = fmt.Fprintf(&sb, "* **#%d** %s\n",
 				prInfo.Number,
 				indicator,
 			)
 		} else {
-			fmt.Fprintf(&sb, "* `%s` (Coming soon 🤞)%s\n",
+			_, _ = fmt.Fprintf(&sb, "* `%s` (Coming soon 🤞)%s\n",
 				branchName,
 				indicator,
 			)
