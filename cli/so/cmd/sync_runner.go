@@ -87,7 +87,7 @@ func (r *syncCmdRunner) run(cmd *cobra.Command) error {
 
 	// --- Discover PRs ---
 	_, _ = fmt.Fprintln(r.stdout, "\nDiscovering existing pull requests...")
-	_, err = gh.DiscoverPRs(ghClient, stackInfo.FullStack[1:])
+	_, err = gh.DiscoverAllPRs(ghClient, stackInfo.FullStack[1:])
 	if err != nil {
 		return fmt.Errorf("failed to discover existing pull requests: %w", err)
 	}

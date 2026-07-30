@@ -5,11 +5,22 @@ import (
 	"log/slog"
 
 	"github.com/benekuehn/socle/cli/so/internal/git"
+	"github.com/google/go-github/v83/github"
 )
 
 // DiscoverPRs iterates through a list of branches, finds their corresponding open PRs on GitHub,
 // and stores the PR numbers in the local Git config.
 func DiscoverPRs(ghClient ClientInterface, branches []string) (map[string]int, error) {
+	return discoverPRs(branches, ghClient.FindOpenPullRequestForBranch, "open")
+}
+
+// DiscoverAllPRs discovers pull requests in any state. It is intended for cleanup
+// flows that must recover metadata for already merged or closed pull requests.
+func DiscoverAllPRs(ghClient ClientInterface, branches []string) (map[string]int, error) {
+	return discoverPRs(branches, ghClient.FindPullRequestForBranch, "existing")
+}
+
+func discoverPRs(branches []string, find func(string) (*github.PullRequest, error), state string) (map[string]int, error) {
 	slog.Debug("Starting PR discovery", "branch_count", len(branches))
 	discoveredPRs := make(map[string]int)
 
@@ -25,10 +36,10 @@ func DiscoverPRs(ghClient ClientInterface, branches []string) (map[string]int, e
 			continue
 		}
 
-		slog.Debug("Searching for open PR for branch", "branch", branch)
-		pr, err := ghClient.FindOpenPullRequestForBranch(branch)
+		slog.Debug("Searching for PR for branch", "branch", branch, "state", state)
+		pr, err := find(branch)
 		if err != nil {
-			return nil, fmt.Errorf("find open pull request for branch %q: %w", branch, err)
+			return nil, fmt.Errorf("find %s pull request for branch %q: %w", state, branch, err)
 		}
 
 		if pr != nil {
@@ -41,7 +52,7 @@ func DiscoverPRs(ghClient ClientInterface, branches []string) (map[string]int, e
 				return nil, fmt.Errorf("store discovered PR number for branch %q: %w", branch, err)
 			}
 		} else {
-			slog.Debug("No open PR found for branch", "branch", branch)
+			slog.Debug("No PR found for branch", "branch", branch, "state", state)
 		}
 	}
 

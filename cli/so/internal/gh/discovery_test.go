@@ -95,3 +95,21 @@ func TestDiscoverPRs(t *testing.T) {
 		assert.Empty(t, prs)
 	})
 }
+
+func TestDiscoverAllPRsStoresClosedPR(t *testing.T) {
+	_, cleanup := testutils.SetupGitRepo(t)
+	defer cleanup()
+	client := NewMockClient()
+	client.On("FindPullRequestForBranch", "feature").Return(&github.PullRequest{
+		Number: github.Ptr(42),
+		State:  github.Ptr("closed"),
+	}, nil).Once()
+
+	prs, err := DiscoverAllPRs(client, []string{"feature"})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]int{"feature": 42}, prs)
+	number, err := git.GetStoredPRNumber("feature")
+	require.NoError(t, err)
+	assert.Equal(t, 42, number)
+	client.AssertExpectations(t)
+}

@@ -24,7 +24,7 @@ func TestSyncCommand_MultipleStacksFromBase(t *testing.T) {
 
 	_, _, err := runSoCommandWithOutput(t, "sync", "--test-no-fetch")
 	require.ErrorContains(t, err, "cannot sync from base branch 'main' with multiple stacks")
-	mockClient.AssertNotCalled(t, "FindOpenPullRequestForBranch", mock.Anything)
+	mockClient.AssertNotCalled(t, "FindPullRequestForBranch", mock.Anything)
 }
 
 func TestSyncCommand_MergedPRs(t *testing.T) {
@@ -74,7 +74,7 @@ func TestSyncCommand_ReparentedBranchKeepsRemoteTracking(t *testing.T) {
 
 	mockClient := gh.NewMockClient()
 	mockClient.PRStatuses[101] = gh.PRStatusMerged
-	mockClient.On("FindOpenPullRequestForBranch", "feature-b").Return(nil, nil)
+	mockClient.On("FindPullRequestForBranch", "feature-b").Return(nil, nil).Once()
 
 	originalCreateGHClient := gh.CreateClient
 	gh.CreateClient = func(ctx context.Context, owner, repo string) (gh.ClientInterface, error) {

@@ -172,3 +172,12 @@ func (c *MockClient) FindOpenPullRequestForBranch(branchName string) (*github.Pu
 	}
 	return args.Get(0).(*github.PullRequest), args.Error(1)
 }
+
+// FindPullRequestForBranch simulates finding a PR in any state for a branch.
+func (c *MockClient) FindPullRequestForBranch(branchName string) (*github.PullRequest, error) {
+	args := c.Called(branchName)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*github.PullRequest), args.Error(1)
+}
