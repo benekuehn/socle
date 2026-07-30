@@ -224,4 +224,17 @@ func TestSubmitCommand(t *testing.T) {
 		client.AssertNotCalled(t, "CreatePullRequest", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 		client.AssertExpectations(t)
 	})
+
+	t.Run("Submit from base with multiple stacks returns an error", func(t *testing.T) {
+		repoPath, cleanup := setupRepoWithMultipleStacks(t)
+		defer cleanup()
+		testutils.RunCommand(t, repoPath, "git", "checkout", "main")
+		testutils.RunCommand(t, repoPath, "git", "remote", "add", "origin", "https://github.com/test-owner/test-repo.git")
+		client := gh.NewMockClient()
+		gh.CreateClient = func(context.Context, string, string) (gh.ClientInterface, error) { return client, nil }
+
+		err := runSoCommand(t, "submit", "--no-push")
+		require.ErrorContains(t, err, "cannot submit from base branch 'main' with multiple stacks")
+		client.AssertNotCalled(t, "FindOpenPullRequestForBranch", mock.Anything)
+	})
 }

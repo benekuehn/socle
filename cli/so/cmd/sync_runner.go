@@ -81,6 +81,9 @@ func (r *syncCmdRunner) run(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to get stack info: %w", err)
 	}
+	if stackInfo.FullStack == nil {
+		return fmt.Errorf("cannot sync from base branch '%s' with multiple stacks. Please navigate to a specific stack first using 'so up', 'so bottom', or 'so stacks' to see available options", stackInfo.CurrentBranch)
+	}
 
 	// --- Discover PRs ---
 	_, _ = fmt.Fprintln(r.stdout, "\nDiscovering existing pull requests...")

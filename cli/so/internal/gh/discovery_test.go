@@ -77,9 +77,9 @@ func TestDiscoverPRs(t *testing.T) {
 	t.Run("fails on config write", func(t *testing.T) {
 		repo, cleanup := testutils.SetupGitRepo(t)
 		defer cleanup()
-		gitDir := filepath.Join(repo, ".git")
-		require.NoError(t, os.Chmod(gitDir, 0o500))
-		t.Cleanup(func() { _ = os.Chmod(gitDir, 0o700) })
+		configLock := filepath.Join(repo, ".git", "config.lock")
+		require.NoError(t, os.WriteFile(configLock, nil, 0o600))
+		t.Cleanup(func() { _ = os.Remove(configLock) })
 		client := NewMockClient()
 		client.On("FindOpenPullRequestForBranch", "feature").Return(&github.PullRequest{Number: github.Ptr(42)}, nil).Once()
 
