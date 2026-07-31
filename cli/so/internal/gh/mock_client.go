@@ -142,3 +142,26 @@ func (c *MockClient) GetIssueComment(commentID int64) (*github.IssueComment, err
 	}
 	return args.Get(0).(*github.IssueComment), args.Error(1)
 }
+
+// FindOpenPullRequestForBranch simulates finding an open PR for a branch
+func (c *MockClient) FindOpenPullRequestForBranch(branchName string) (*github.PullRequest, error) {
+	// Count the operation
+	if c.CounterChan != nil {
+		c.CounterChan <- "FindOpenPullRequestForBranch"
+	}
+	Counter.Increment("FindOpenPullRequestForBranch")
+
+	args := c.Called(branchName)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*github.PullRequest), args.Error(1)
+}
+
+func (c *MockClient) FindPullRequestsForBranch(branchName, state string) ([]*github.PullRequest, error) {
+	args := c.Called(branchName, state)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*github.PullRequest), args.Error(1)
+}

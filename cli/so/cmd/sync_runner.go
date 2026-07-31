@@ -25,14 +25,14 @@ type syncCmdRunner struct {
 	// Config flags
 	doRestack bool
 	noFetch   bool
-	noSurvey   bool // Auto-confirm any prompts for tests
+	noSurvey  bool // Auto-confirm any prompts for tests
 }
 
 func (r *syncCmdRunner) run(cmd *cobra.Command) error {
 	// --- Pre-Checks ---
 	if git.IsRebaseInProgress() {
 		_, _ = fmt.Fprintln(r.stderr, ui.Colors.InfoStyle.Render("Git rebase already in progress."))
-		_, _ = fmt.Fprintln(r.stderr, ui.Colors.InfoStyle.Render("Resolve conflicts and run 'git rebase --continue' or cancel with 'git rebase --abort'."))
+		_, _ = fmt.Fprintln(r.stderr, ui.Colors.InfoStyle.Render("Resolve conflicts and run 'git rebase --continue' or cancel with 'git rebase --abort'"))
 		_, _ = fmt.Fprintln(r.stderr, ui.Colors.InfoStyle.Render("Once the Git rebase is finished, run 'so sync' again if needed."))
 		cmd.SilenceUsage = true // Prevent usage printing on clean exit
 		return nil              // Exit cleanly, user needs to act in Git
@@ -80,6 +80,13 @@ func (r *syncCmdRunner) run(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to get stack info: %w", err)
 	}
 
+	// --- Discover PRs ---
+	_, _ = fmt.Fprintln(r.stdout, "\nDiscovering existing pull requests...")
+	_, err = gh.DiscoverCompletedPRs(ghClient, stackInfo.FullStack[1:])
+	if err != nil {
+		return fmt.Errorf("failed to discover pull requests: %w", err)
+	}
+
 	// --- Check PR Statuses and Clean Up ---
 	_, _ = fmt.Fprintln(r.stdout, "\nChecking PR statuses...")
 
@@ -113,7 +120,10 @@ func (r *syncCmdRunner) run(cmd *cobra.Command) error {
 				results[branchName] = struct {
 					prNumber int
 					status   string
-				}{prNum, status}
+				}{
+					prNum,
+					status,
+				}
 				mu.Unlock()
 			}
 		}(branch, prNumber)
