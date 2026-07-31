@@ -23,6 +23,7 @@ Process:
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger := slog.Default()
+		doRestack := syncBooleanOptions(cmd)
 
 		noFetch, _ := cmd.Flags().GetBool("test-no-fetch")
 		noSurvey, _ := cmd.Flags().GetBool("test-no-survey")
@@ -35,13 +36,18 @@ Process:
 			nonInteractive: nonInteractive,
 
 			// Populate config from flags
-			doRestack: !cmd.Flag("no-restack").Changed,
+			doRestack: doRestack,
 			noFetch:   noFetch,
 			noSurvey:  noSurvey,
 		}
 
 		return runner.run(cmd)
 	},
+}
+
+func syncBooleanOptions(cmd *cobra.Command) bool {
+	noRestack := mustGetBool(cmd, "no-restack")
+	return !noRestack
 }
 
 func init() {
