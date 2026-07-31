@@ -46,7 +46,7 @@ Process:
 }
 
 func syncBooleanOptions(cmd *cobra.Command) bool {
-	noRestack, _ := cmd.Flags().GetBool("no-restack")
+	noRestack := mustGetBool(cmd, "no-restack")
 	return !noRestack
 }
 

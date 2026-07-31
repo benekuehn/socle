@@ -87,3 +87,17 @@ func TestBooleanFlagRestackPushFlagsRemainExclusive(t *testing.T) {
 	cmd.SetArgs([]string{"--force-push", "--no-push"})
 	assert.Error(t, cmd.Execute())
 }
+
+func TestBooleanFlagOptionsRequireDefinedFlags(t *testing.T) {
+	restack := func(flags ...string) {
+		cmd := &cobra.Command{}
+		for _, flag := range flags {
+			cmd.Flags().Bool(flag, false, "")
+		}
+		assert.Panics(t, func() { restackBooleanOptions(cmd) })
+	}
+	restack()
+	restack("no-fetch")
+	restack("no-fetch", "force-push")
+	assert.Panics(t, func() { syncBooleanOptions(&cobra.Command{}) })
+}

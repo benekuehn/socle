@@ -46,9 +46,9 @@ Process:
 }
 
 func restackBooleanOptions(cmd *cobra.Command) (noFetch, forcePush, noPush bool) {
-	noFetch, _ = cmd.Flags().GetBool("no-fetch")
-	forcePush, _ = cmd.Flags().GetBool("force-push")
-	noPush, _ = cmd.Flags().GetBool("no-push")
+	noFetch = mustGetBool(cmd, "no-fetch")
+	forcePush = mustGetBool(cmd, "force-push")
+	noPush = mustGetBool(cmd, "no-push")
 	return
 }
 
