@@ -190,6 +190,13 @@ func (r *syncCmdRunner) run(cmd *cobra.Command) error {
 			if err != nil {
 				return fmt.Errorf("failed to determine replacement parents: %w", err)
 			}
+			for _, branch := range branchesToDelete {
+				if branch != currentBranch {
+					if err := git.CheckBranchDeletion(branch); err != nil {
+						return fmt.Errorf("failed to delete branch '%s': %w", branch, err)
+					}
+				}
+			}
 
 			// Apply all tracking updates first
 			for branch, newParent := range branchUpdates {

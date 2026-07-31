@@ -94,3 +94,15 @@ func BranchDelete(name string) error {
 	}
 	return nil
 }
+
+// CheckBranchDeletion reports whether another worktree has the branch checked out.
+func CheckBranchDeletion(name string) error {
+	output, err := RunGitCommand("worktree", "list", "--porcelain")
+	if err != nil {
+		return err
+	}
+	if strings.Contains("\n"+output+"\n", "\nbranch refs/heads/"+name+"\n") {
+		return fmt.Errorf("branch '%s' is checked out in another worktree", name)
+	}
+	return nil
+}
