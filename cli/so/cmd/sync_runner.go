@@ -28,6 +28,7 @@ type syncCmdRunner struct {
 	doRestack bool
 	noFetch   bool
 	noSurvey  bool // Auto-confirm any prompts for tests
+	confirm   func() (bool, error)
 }
 
 func (r *syncCmdRunner) run(cmd *cobra.Command) error {
@@ -162,10 +163,14 @@ func (r *syncCmdRunner) run(cmd *cobra.Command) error {
 
 		confirm := r.noSurvey // Auto-confirm for tests
 		if !r.noSurvey && !r.nonInteractive {
-			prompt := &survey.Confirm{
-				Message: "Delete these " + strconv.Itoa(len(branchesToDelete)) + " branches?",
+			var err error
+			if r.confirm != nil {
+				confirm, err = r.confirm()
+			} else {
+				prompt := &survey.Confirm{Message: "Delete these " + strconv.Itoa(len(branchesToDelete)) + " branches?"}
+				err = survey.AskOne(prompt, &confirm)
 			}
-			if err := survey.AskOne(prompt, &confirm); err != nil {
+			if err != nil {
 				return fmt.Errorf("failed to get user confirmation: %w", err)
 			}
 		}
@@ -181,29 +186,14 @@ func (r *syncCmdRunner) run(cmd *cobra.Command) error {
 				return fmt.Errorf("failed to get initial stack info: %w", err)
 			}
 
-			// Create a map of branch -> new parent for all branches that need updating
-			// This ensures we have all the updates ready before making any changes
-			branchUpdates := make(map[string]string)
+			branchUpdates, err := replacementParents(initialStackInfo.ParentMap, branchesToDelete)
+			if err != nil {
+				return fmt.Errorf("failed to determine replacement parents: %w", err)
+			}
 			for _, branch := range branchesToDelete {
-				// Get the parent of the branch to be deleted
-				parentConfigKey := fmt.Sprintf("branch.%s.socle-parent", branch)
-				deletedBranchParent, err := git.GetGitConfig(parentConfigKey)
-				if err != nil {
-					return fmt.Errorf("failed to get parent for branch '%s': %w", branch, err)
-				}
-
-				// Find all branches that were tracking this branch
-				for _, currentBranch := range initialStackInfo.FullStack {
-					if currentBranch == branch || currentBranch == initialStackInfo.BaseBranch {
-						continue
-					}
-					parent, ok := initialStackInfo.ParentMap[currentBranch]
-					if !ok {
-						continue
-					}
-					if parent == branch {
-						// This branch needs to be updated to track the deleted branch's parent
-						branchUpdates[currentBranch] = deletedBranchParent
+				if branch != currentBranch {
+					if err := git.CheckBranchDeletion(branch); err != nil {
+						return fmt.Errorf("failed to delete branch '%s': %w", branch, err)
 					}
 				}
 			}
@@ -275,4 +265,35 @@ func (r *syncCmdRunner) run(cmd *cobra.Command) error {
 
 	_, _ = fmt.Fprintln(r.stdout, ui.Colors.SuccessStyle.Render("\nSync completed successfully."))
 	return nil
+}
+
+func replacementParents(parentMap map[string]string, branchesToDelete []string) (map[string]string, error) {
+	deleted := make(map[string]bool, len(branchesToDelete))
+	for _, branch := range branchesToDelete {
+		deleted[branch] = true
+	}
+
+	updates := make(map[string]string)
+	for branch, parent := range parentMap {
+		if deleted[branch] || !deleted[parent] {
+			continue
+		}
+		seen := make(map[string]bool)
+		for deleted[parent] {
+			if seen[parent] {
+				return nil, fmt.Errorf("cycle detected while replacing parent for branch '%s'", branch)
+			}
+			seen[parent] = true
+			var ok bool
+			parent, ok = parentMap[parent]
+			if !ok {
+				return nil, fmt.Errorf("missing parent while replacing parent for branch '%s'", branch)
+			}
+		}
+		if parent == branch {
+			return nil, fmt.Errorf("replacement parent is branch '%s' itself", branch)
+		}
+		updates[branch] = parent
+	}
+	return updates, nil
 }
