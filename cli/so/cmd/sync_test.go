@@ -134,6 +134,28 @@ func TestSyncCommand_DeclinedDeletionLeavesBranchesUnchanged(t *testing.T) {
 	mockClient.AssertExpectations(t)
 }
 
+func TestSyncCommand_YesDeletesBranchesNonInteractively(t *testing.T) {
+	repoPath, cleanup := setupRepoWithStack(t, []string{"main", "feature-a", "feature-b"})
+	defer cleanup()
+	testutils.RunCommand(t, repoPath, "git", "remote", "add", "origin", "https://github.com/test-owner/test-repo.git")
+	testutils.RunCommand(t, repoPath, "git", "config", "--local", "branch.feature-a.socle-pr-number", "101")
+	testutils.RunCommand(t, repoPath, "git", "branch", "origin/main", "main")
+
+	mockClient := gh.NewMockClient()
+	mockClient.PRStatuses[101] = gh.PRStatusMerged
+	mockClient.On("FindPullRequestForBranch", "feature-b").Return(nil, nil).Once()
+	originalCreateGHClient := gh.CreateClient
+	gh.CreateClient = func(context.Context, string, string) (gh.ClientInterface, error) { return mockClient, nil }
+	t.Cleanup(func() { gh.CreateClient = originalCreateGHClient })
+
+	_, _, err := runSoCommandWithOutput(t, "--non-interactive", "sync", "--yes", "--test-no-fetch", "--no-restack")
+	require.NoError(t, err)
+	exists, err := git.BranchExists("feature-a")
+	require.NoError(t, err)
+	assert.False(t, exists)
+	mockClient.AssertExpectations(t)
+}
+
 func TestSyncCommand_DeletePreflightLeavesMetadataUnchanged(t *testing.T) {
 	repoPath, cleanup := setupRepoWithStack(t, []string{"main", "feature-a", "feature-b"})
 	defer cleanup()

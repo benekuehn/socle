@@ -208,6 +208,7 @@ so sync [flags]
 ```
   -h, --help         help for sync
       --no-restack   Skip restacking branches
+  -y, --yes          Delete merged or closed branches without prompting
 ```
 
 ### Options inherited from parent commands
