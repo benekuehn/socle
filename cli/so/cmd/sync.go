@@ -27,6 +27,7 @@ Process:
 
 		noFetch, _ := cmd.Flags().GetBool("test-no-fetch")
 		noSurvey, _ := cmd.Flags().GetBool("test-no-survey")
+		yes, _ := cmd.Flags().GetBool("yes")
 
 		runner := &syncCmdRunner{
 			logger:         logger,
@@ -39,6 +40,7 @@ Process:
 			doRestack: doRestack,
 			noFetch:   noFetch,
 			noSurvey:  noSurvey,
+			yes:       yes,
 		}
 
 		return runner.run(cmd)
@@ -53,6 +55,7 @@ func syncBooleanOptions(cmd *cobra.Command) bool {
 func init() {
 	AddCommand(syncCmd)
 	syncCmd.Flags().Bool("no-restack", false, "Skip restacking branches")
+	syncCmd.Flags().BoolP("yes", "y", false, "Delete merged or closed branches without prompting")
 	syncCmd.Flags().Bool("test-no-fetch", false, "TESTING: Skip fetching from remote")
 	syncCmd.Flags().Bool("test-no-survey", false, "TESTING: Auto-answer yes to all prompts")
 	_ = syncCmd.Flags().MarkHidden("test-no-fetch")

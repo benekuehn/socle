@@ -28,6 +28,7 @@ type syncCmdRunner struct {
 	doRestack bool
 	noFetch   bool
 	noSurvey  bool // Auto-confirm any prompts for tests
+	yes       bool
 	confirm   func() (bool, error)
 }
 
@@ -161,8 +162,8 @@ func (r *syncCmdRunner) run(cmd *cobra.Command) error {
 			_, _ = fmt.Fprintf(r.stdout, "  - %s\n", branch)
 		}
 
-		confirm := r.noSurvey // Auto-confirm for tests
-		if !r.noSurvey && !r.nonInteractive {
+		confirm := r.noSurvey || r.yes
+		if !confirm && !r.nonInteractive {
 			var err error
 			if r.confirm != nil {
 				confirm, err = r.confirm()
@@ -175,7 +176,7 @@ func (r *syncCmdRunner) run(cmd *cobra.Command) error {
 			}
 		}
 
-		if r.nonInteractive && !r.noSurvey {
+		if r.nonInteractive && !confirm {
 			_, _ = fmt.Fprintln(r.stdout, ui.Colors.InfoStyle.Render("Non-interactive mode: skipping branch deletion; rerun without --non-interactive to confirm."))
 		}
 
