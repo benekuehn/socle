@@ -1,11 +1,13 @@
 # Socle
+
+> [!WARNING]
+> Socle is abandoned and no longer maintained. GitHub now provides stack support; use [GitHub Stacks](https://github.com/github/gh-stack) instead.
+
 Socle is the CLI tool purpose-built for managing stacked Git branches on GitHub, fostering focused pull requests, enabling better reviews, and keeping you in a state of productive flow.
 
 ## What are Stacked Branches?
 
 Stacked branches (also known as stacked diffs) are a powerful way to break down complex features into manageable, reviewable units. Instead of one massive branch with dozens of commits or hundreds of lines, you create a sequence of smaller, dependent branches. Each branch builds upon the previous one, containing a distinct, logical piece of the larger feature.
-
-[Learn more about stacked branches →](https://socle.dev/why-stacking-branches)
 
 ## Installation
 

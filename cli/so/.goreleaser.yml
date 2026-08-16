@@ -58,26 +58,6 @@ release:
     # Creates a draft release. Change to false to auto-publish.
     draft: true
 
-# Homebrew Tap configuration
-# Reference: https://goreleaser.com/customization/homebrew/
-brews:
-    - # Tap repository details
-      repository:
-          owner: benekuehn
-          name: homebrew-tap # Your tap repository name
-          token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-
-      # Commit message template for the tap repository
-      commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
-
-      # Link to your project's homepage
-      homepage: "https://github.com/benekuehn/socle"
-      # Description for the formula
-      description: "CLI tool for managing stacked Git branches"
-
-      # License for the formula
-      license: "MIT"
-
 # Configuration for snapshot releases (testing without tagging)
 # Reference: https://goreleaser.com/customization/snapshots/
 snapshot:
